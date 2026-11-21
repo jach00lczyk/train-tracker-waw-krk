@@ -12,3 +12,8 @@ ALLOWED_ORIGIN = "https://jach00lczyk.github.io"
 MAX_UPSTREAM_PER_HOUR = "30"
 
 # Sekret (nie tutaj!): npx wrangler secret put PDP_API_KEY
+
+# Wspólny przypięty pociąg (SPEC 5.5). ID nie jest sekretem — bez dostępu do konta nic nie daje.
+[[kv_namespaces]]
+binding = "STATE"
+id = "bbc040f76a6647a9bfcefdac73b1235e"

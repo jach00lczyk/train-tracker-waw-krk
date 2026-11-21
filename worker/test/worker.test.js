@@ -25,12 +25,27 @@ function fakeCache() {
 }
 
 /** Upstream: mapa ścieżka (sid/oid/data) → {status, body, headers}; domyślnie próbka dla KEY, inne 404. */
-function setup({ routes = {}, env = ENV } = {}) {
+function fakeKv() {
+  const store = new Map();
+  return {
+    store,
+    async get(key, opts) {
+      const v = store.get(key);
+      return v == null ? null : opts?.type === 'json' ? JSON.parse(v) : v;
+    },
+    async put(key, value) {
+      store.set(key, value);
+    },
+  };
+}
+
+function setup({ routes = {}, env = ENV, kv = null } = {}) {
   const calls = [];
   const logs = [];
   let now = T0;
   const deps = {
     cache: fakeCache(),
+    kv,
     now: () => now,
     log: (m) => logs.push(m),
     fetch: async (url, init) => {
@@ -101,7 +116,7 @@ test('404 upstream means none (normal state) and is cached 10 min', async () => 
 
 test('key validation', async () => {
   const { call, calls } = setup();
-  for (const bad of ['', 'abc', '2026/1/2026-13-01', '2026/1/2026-02-30', '2026/1', `${KEY},x`, '1/2/2026-01-01/3']) {
+  for (const bad of ['abc', ',', '2026/1/2026-13-01', '2026/1/2026-02-30', '2026/1', `${KEY},x`, '1/2/2026-01-01/3']) {
     assert.equal((await call(encodeURIComponent(bad))).resp.status, 400, bad);
   }
   const many = Array.from({ length: 31 }, (_, i) => `2026/${i + 1}/2026-11-21`).join(',');
@@ -256,4 +271,66 @@ test('real recon sample: omitted isConfirmed/isCancelled mean false', async () =
   assert.equal(t.stops.length, real.stations.length);
   assert.deepEqual(t.stops[0], { id: 80416, aa: null, ad: '2026-11-21T13:43:00', cf: true, cx: false });
   assert.ok(t.stops.slice(1).every((s) => s.cf === false && s.cx === false));
+});
+
+// --------------------------------------------------------------------------- wspólny przypięty pociąg (SPEC 5.5)
+
+const putPin = (deps, state, body, origin = ORIGIN) =>
+  handle(new Request('https://w.example/pin', {
+    method: 'PUT', headers: { Origin: origin, 'Content-Type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  }), ENV, deps, state);
+
+test('pin: empty t returns only the shared pin, no upstream calls', async () => {
+  const kv = fakeKv();
+  const { call, calls } = setup({ kv });
+  let { resp, body } = await call('');
+  assert.equal(resp.status, 200);
+  assert.deepEqual(body.trains, {});
+  assert.equal(body.pin, null);
+  kv.store.set('pin', JSON.stringify({ key: KEY, at: '2026-11-21T07:00:00Z' }));
+  ({ body } = await call(KEY));
+  assert.deepEqual(body.pin, { key: KEY, at: '2026-11-21T07:00:00Z' });
+  assert.equal(calls.length, 1);
+});
+
+test('pin: without KV binding the field is omitted and PUT is unavailable', async () => {
+  const { call, deps, state } = setup();
+  const { body } = await call('');
+  assert.equal('pin' in body, false);
+  assert.equal((await putPin(deps, state, { key: KEY })).status, 503);
+});
+
+test('pin: PUT stores key with server time, null clears; validation and CORS', async () => {
+  const kv = fakeKv();
+  const { call, deps, state } = setup({ kv });
+  const r = await putPin(deps, state, { key: KEY });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), ORIGIN);
+  assert.deepEqual((await r.json()).pin, { key: KEY, at: '2026-11-21T07:50:00Z' });
+  assert.deepEqual((await call('')).body.pin, { key: KEY, at: '2026-11-21T07:50:00Z' });
+  assert.equal((await putPin(deps, state, { key: null })).status, 200);
+  assert.equal((await call('')).body.pin.key, null);
+  for (const bad of [{ key: 'abc' }, { key: 5 }, 'nie-json', JSON.stringify({ key: 'x'.repeat(300) })]) {
+    assert.equal((await putPin(deps, state, bad)).status, 400);
+  }
+  assert.equal((await putPin(deps, state, { key: KEY }, 'https://evil.example')).status, 403);
+  const get = await handle(new Request('https://w.example/pin', { headers: { Origin: ORIGIN } }), ENV, deps, state);
+  assert.equal(get.status, 405);
+});
+
+test('pin: writes limited per hour', async () => {
+  const { deps, state, advance } = setup({ kv: fakeKv() });
+  for (let i = 0; i < 60; i++) assert.equal((await putPin(deps, state, { key: KEY })).status, 200);
+  assert.equal((await putPin(deps, state, { key: KEY })).status, 429);
+  advance(3600_000);
+  assert.equal((await putPin(deps, state, { key: KEY })).status, 200);
+});
+
+test('preflight allows PUT with JSON', async () => {
+  const { deps, state } = setup();
+  const r = await handle(new Request('https://w.example/pin', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), ENV, deps, state);
+  assert.equal(r.status, 204);
+  assert.match(r.headers.get('Access-Control-Allow-Methods'), /PUT/);
+  assert.equal(r.headers.get('Access-Control-Allow-Headers'), 'Content-Type');
 });

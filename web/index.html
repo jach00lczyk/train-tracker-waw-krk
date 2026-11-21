@@ -8,7 +8,9 @@
 <meta name="theme-color" content="#55630F">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- „default", nie „black-translucent": od iOS 26.1 przy black-translucent system rozmywa górę
+     aplikacji z ekranu głównego i nie da się tego wyłączyć z CSS. iOS czyta to przy instalacji. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Pociągi">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">

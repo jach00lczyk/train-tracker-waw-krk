@@ -25,9 +25,11 @@ Adres: https://jach00lczyk.github.io/train-tracker-waw-krk/
    cd worker
    npm install
    npx wrangler login
+   npx wrangler kv namespace create STATE   # raz; ID wpisz w wrangler.toml ([[kv_namespaces]])
    npx wrangler secret put PDP_API_KEY
    npx wrangler deploy
    ```
+   KV trzyma wspólny przypięty pociąg (SPEC 5.5). Przy zmianie API Workera najpierw `deploy`, potem push strony.
    Adres z wyjścia `deploy` (np. `https://train-tracker-waw-krk.<konto>.workers.dev`) wpisz do
    `web/config.js` jako `LIVE_URL` i wypchnij zmianę. Bez tego strona działa „rozkładowo”.
 4. **Rekonesans API (faza 0)** — jednorazowo, ≤ 12 zapytań:
@@ -50,7 +52,11 @@ Adres: https://jach00lczyk.github.io/train-tracker-waw-krk/
 3. Uruchamiaj z ikony — strona otwiera się na pełnym ekranie, bez paska Safari.
 
 Rano (przed 12:00) strona otwiera się na „Do Krakowa”, po południu na „Do Warszawy”; ręczny wybór
-obowiązuje do północy. Gwiazdka przypina pociąg w kafelku „Twój pociąg”.
+obowiązuje do północy. Gwiazdka przypina pociąg w kafelku „Twój pociąg” — **jeden wspólny dla wszystkich
+urządzeń** (Safari, ikona na ekranie, telefony domowników). Stuknięcie w kafelek pokazuje stacje pośrednie.
+
+Ikona dodana przed 21.11.2026 ma rozmytą górę ekranu (iOS 26.1+). iOS czyta styl paska statusu tylko przy
+dodawaniu do ekranu — **usuń ikonę i dodaj ją ponownie**.
 
 ## Praca lokalna
 

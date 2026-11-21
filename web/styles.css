@@ -77,7 +77,26 @@ button {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+
+/* Zwijanie (SPEC 8.2): tytuł ↔ przycisk „Do KRK" w tej samej komórce, przełącznik chowa się do zera. */
+.lead { display: grid; align-items: center; justify-items: start; min-width: 0; }
+.lead > * { grid-area: 1 / 1; transition: opacity 0.22s ease, transform 0.22s ease; }
+.hdr.compact .title { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.hdr:not(.compact) .swap { opacity: 0; transform: translateY(8px); pointer-events: none; }
+
+.dirs-wrap {
+  --gap: 12px;
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: var(--gap);
+  transition: grid-template-rows 0.25s ease, margin-top 0.25s ease, opacity 0.2s ease;
+}
+.dirs-clip { min-height: 0; overflow: hidden; }
+.hdr.compact .dirs-wrap { grid-template-rows: 0fr; margin-top: 0; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lead > *, .dirs-wrap { transition: none; }
 }
 
 .hdr-row {
@@ -242,7 +261,8 @@ button {
 .card.pinned { border-color: var(--lime); }
 .card .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 
-.card.up { display: flex; align-items: center; gap: 12px; padding: 10px 2px 10px 12px; }
+.card.up { padding: 10px 2px 10px 12px; }
+.card.up .row { display: flex; align-items: center; gap: 12px; }
 .card.up .tt { display: flex; flex-direction: column; gap: 2px; }
 .card.up .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .card.up .tl { font-size: 14px; font-weight: 700; }
@@ -343,3 +363,70 @@ button {
   border-radius: 12px;
 }
 .toast:empty { display: none; }
+
+/* ----------------------------------------------------------------------- rozwijana lista stacji */
+
+.card, .pin, .tile { position: relative; }
+.open {
+  position: absolute; inset: 0;
+  z-index: 0;
+  border: 0; padding: 0;
+  border-radius: inherit;
+  background: transparent;
+}
+.open:focus-visible { outline: 3px solid var(--card-ink); outline-offset: -3px; }
+.pin .open:focus-visible { outline-color: var(--ink-lime); }
+/* gwiazdka i pastylki nad przyciskiem kafelka, reszta treści „przepuszcza" stuknięcie */
+.card .star, .card .side { position: relative; z-index: 1; }
+.card .body, .card .tt, .card .meta, .pin > :not(.open), .tile > :not(.open) { pointer-events: none; }
+.stops { pointer-events: none; }
+.tile.is-open { grid-column: 1 / -1; }
+
+.stops {
+  list-style: none;
+  margin: 4px 0 0; padding: 10px 0 0;
+  border-top: 1px solid rgba(15, 37, 51, 0.18);
+  display: flex; flex-direction: column;
+  font-size: 14px;
+}
+.pin .stops { border-top-color: rgba(31, 39, 8, 0.2); }
+.stops li {
+  display: grid;
+  grid-template-columns: 4.6em 14px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 28px;
+  position: relative;
+}
+.st-t { display: flex; flex-direction: column; line-height: 1.15; font-weight: 600; }
+.st-t s { font-size: 11px; font-weight: 400; color: var(--card-ink-2); }
+.st-t .late { color: var(--late); }
+.st-n { min-width: 0; }
+.stops .from .st-n, .stops .to .st-n { font-weight: 700; }
+/* oś: kropka + linia do następnej stacji */
+.st-dot {
+  width: 10px; height: 10px; justify-self: center;
+  border-radius: 5px;
+  border: 2px solid var(--card-ink);
+  background: var(--card);
+  position: relative; z-index: 1;
+}
+.stops li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(4.6em + 8px + 6px); top: 50%;
+  width: 2px; height: 100%;
+  background: var(--card-ink-2);
+  opacity: 0.45;
+}
+.stops .passed { color: var(--card-ink-2); }
+.stops .passed .st-dot { background: var(--card-ink-2); border-color: var(--card-ink-2); }
+.stops .next .st-dot { background: var(--progress); border-color: var(--progress); }
+.pin .stops .next .st-dot { background: var(--ink-lime); border-color: var(--ink-lime); }
+.tile .stops { font-size: 13px; }
+.pin .stops li, .pin .st-t s, .pin .stops .passed { color: var(--ink-lime); }
+.pin .stops .passed { color: var(--ink-lime-2); }
+.pin .st-t s { color: var(--ink-lime-2); }
+.pin .st-dot { border-color: var(--ink-lime); background: var(--lime); }
+.pin .stops .passed .st-dot { background: var(--ink-lime-2); border-color: var(--ink-lime-2); }
+.pin .stops li:not(:last-child)::after { background: var(--ink-lime-2); }

@@ -10,6 +10,8 @@ export const LIVE_SOON_MS = 3 * 3600_000;
 export const LIVE_HORIZON_MS = 4 * 3600_000;
 export const LIVE_RECENT_ARRIVAL_MS = 30 * 60_000;
 export const MAX_LIVE_KEYS = 30;
+/** Ile po oczekiwanym odjeździe uznajemy pociąg za odjechany bez potwierdzenia z PLK. */
+export const DEPARTURE_GRACE_MS = 10 * 60_000;
 export const STALE_REFRESH_MS = 60 * 60_000;
 
 const MIN = 60_000;
@@ -151,10 +153,19 @@ export function trainState(train, entry, now, stations = {}) {
   const expArr = liveArr ?? planArr + depDelay * MIN;
   const arrDelay = roundMin(expArr - planArr);
 
+  // „W drodze" dopiero po odjeździe z NASZEJ stacji. Pociąg przelotowy ma status P już przed nią,
+  // a `cf` na naszym postoju bywa ustawione po samym przyjeździe (odjazd to wtedy jeszcze prognoza).
+  const passedLater = fi >= 0 && stops.slice(fi + 1).some((s) => s.cf && (s.aa || s.ad));
+  const depConfirmed = !!fromStop?.cf && localToMs(fromStop?.ad) != null && localToMs(fromStop.ad) <= now;
+  const departed =
+    passedLater ||
+    depConfirmed ||
+    (ts === 'P' && now >= expDep + (fromStop ? DEPARTURE_GRACE_MS : 0)); // PLK nie potwierdził odjazdu
+
   let status;
   if (cancelled) status = 'cancelled';
   else if ((toStop?.aa && toStop.cf) || ts === 'C' || ts === 'F') status = 'arrived';
-  else if ((fromStop?.ad && fromStop.cf) || (ts === 'P' && now >= expDep)) status = 'enroute';
+  else if (departed) status = 'enroute';
   else status = 'upcoming';
 
   let lastStation = null;
@@ -174,6 +185,49 @@ export function trainState(train, entry, now, stations = {}) {
     lastStation: status === 'enroute' ? lastStation : null,
     progress: status === 'enroute' ? progress(expDep, expArr, now) : null,
   };
+}
+
+/**
+ * Stacje odcinka WAW–KRK do rozwiniętego kafelka: plan z `train.stops`, prognoza/rzeczywistość z Workera.
+ * Wiersz: {id, name, kind: 'from'|'mid'|'to', plan, exp, delay, passed, confirmed}; `plan`/`exp` to czas
+ * pokazywany na tej stacji (odjazd dla stacji początkowej, przyjazd dla pozostałych). [] gdy brak danych.
+ */
+export function stopsView(train, entry, now, stations = {}) {
+  const segment = Array.isArray(train.stops) ? train.stops : [];
+  if (segment.length < 2) return [];
+  const base = train.from.dep * 1000;
+  const live = freshLive(entry, now);
+  const liveStops = live?.state === 'ok' && Array.isArray(live.stops) ? live.stops : [];
+  let j = 0;
+  return segment.map(([id, arrOff, depOff], i) => {
+    const kind = i === 0 ? 'from' : i === segment.length - 1 ? 'to' : 'mid';
+    const plan = base + (kind === 'from' ? depOff : arrOff) * 1000;
+    // dopasowanie po kolei (ta sama stacja może wystąpić dwa razy w kursie)
+    let ls = null;
+    for (let k = j; k < liveStops.length; k++) {
+      if (liveStops[k].id === id) {
+        ls = liveStops[k];
+        j = k + 1;
+        break;
+      }
+    }
+    let liveT = null;
+    if (ls) liveT = kind === 'from' ? localToMs(ls.ad) ?? localToMs(ls.aa) : localToMs(ls.aa) ?? localToMs(ls.ad);
+    const exp = liveT == null ? plan : kind === 'from' ? Math.max(plan, liveT) : liveT;
+    const leaveT = ls ? localToMs(ls.ad) ?? localToMs(ls.aa) : null;
+    const confirmed = !!ls?.cf;
+    const passed = ls ? confirmed && leaveT != null && leaveT <= now : !live && base + depOff * 1000 <= now;
+    return {
+      id,
+      name: stations[String(id)] ?? '',
+      kind,
+      plan,
+      exp,
+      delay: Math.max(0, roundMin(exp - plan)),
+      passed,
+      confirmed,
+    };
+  });
 }
 
 export function progress(dep, arr, now) {

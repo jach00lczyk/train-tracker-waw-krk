@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Poprawki po pierwszym dniu na telefonie (21.11.2026)
+- **„W drodze” dopiero po odjeździe z naszej stacji.** Pociąg przelotowy (np. IC z Przemyśla) ma status P
+  już przed Krakowem, a PLK ustawia `cf` na naszym postoju po samym przyjeździe — strona pokazywała go jako
+  jadący przed odjazdem. Teraz: potwierdzony postój za naszą stacją, potwierdzony odjazd w przeszłości albo
+  P + 10 min po oczekiwanym odjeździe (SPEC 5.3). Test na scenariuszu z telefonu.
+- **Wspólny przypięty pociąg** (decyzja właściciela): Worker zapisuje go w Workers KV (`PUT /pin`), strona
+  dostaje go w każdej odpowiedzi `/live` — bez nowego pollingu. Wcześniej Safari, ikona z ekranu głównego
+  i każdy telefon miały osobną pamięć. Testy Workera (KV, walidacja, CORS, limit zapisów).
+- **Stacje pośrednie** po stuknięciu w kafelek (Dziś, Twój pociąg, Jutro): planowe godziny z nowego pola
+  `stops` w `trains.json` (+40 KB, 180 KB łącznie), opóźnienia i minione stacje z danych na żywo
+  (`stopsView`, testy w pipeline i logice).
+- **Płynne zwijanie nagłówka** — przejście CSS zamiast przełączania widoków.
+- **iOS 26.1+: rozmyta góra aplikacji z ekranu głównego** — styl paska statusu `default` zamiast
+  `black-translucent`. Wymaga ponownego dodania ikony do ekranu.
+
 ### Wdrożenie (21.11.2026)
 - Strona: https://jach00lczyk.github.io/train-tracker-waw-krk/ (GitHub Pages z gałęzi `gh-pages`).
 - Worker: https://train-tracker-waw-krk.jach00lczyk.workers.dev — `LIVE_URL` w `web/config.js`.

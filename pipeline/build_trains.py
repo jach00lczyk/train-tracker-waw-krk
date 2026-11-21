@@ -241,6 +241,9 @@ def build(data: dict, today: dt.date) -> dict:
             to = endpoint(stops[ti], d, "a")
             if to["arr"] <= frm["dep"]:
                 raise BuildError(f"Przyjazd nie po odjeździe w kursie {route['sid']}/{route['oid']} {d}")
+            # Postoje odcinka WAW–KRK: [id, przyjazd, odjazd] w s względem from.dep (zwarte; strona dodaje from.dep).
+            segment = [[s.id, wall_to_epoch(d, s.arr) - frm["dep"], wall_to_epoch(d, s.dep) - frm["dep"]]
+                       for s in stops[fi:ti + 1]]
             trains.append({
                 "key": f"{route['sid']}/{route['oid']}/{d.isoformat()}",
                 "sid": int(route["sid"]), "oid": int(route["oid"]), "date": d.isoformat(),
@@ -249,6 +252,7 @@ def build(data: dict, today: dt.date) -> dict:
                 "from": frm, "to": to,
                 "waw_station": waw_station,
                 "route": route_ids,
+                "stops": segment,
             })
         used_stations.update(route_ids)
     for reason, n in sorted(skipped.items()):

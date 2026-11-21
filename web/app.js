@@ -72,6 +72,7 @@ const state = {
   lastAttempt: 0,
   refreshing: false,
   showArrived: false,
+  open: new Set(), // klucze kafelków rozwiniętych do listy stacji
   compact: false,
   demo: null,
 };
@@ -82,6 +83,56 @@ const toast = document.getElementById('toast');
 
 function currentDir() {
   return L.effectiveDir(store.get('dir'), now());
+}
+
+// --------------------------------------------------------------------------- przypięty pociąg (SPEC 5.5)
+// Jeden wspólny dla wszystkich urządzeń: zapis PUT /pin w Workerze, odczyt w odpowiedzi /live.
+// Lokalnie {key, at, pending}; `pending` = zmiana jeszcze niezapisana w Workerze (ponowienie przy odświeżeniu).
+
+function getPin() {
+  const v = store.get('pin');
+  if (typeof v === 'string') return { key: v, at: null, pending: false }; // stary format / demo
+  if (v && typeof v === 'object') return { key: v.key ?? null, at: v.at ?? null, pending: !!v.pending };
+  return { key: null, at: null, pending: false };
+}
+
+const liveBase = () => LIVE_URL.replace(/\/$/, '');
+
+function timeoutOpts(extra = {}) {
+  const opts = { cache: 'no-store', ...extra };
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(LIVE_TIMEOUT_MS);
+  return opts;
+}
+
+function setPin(key) {
+  store.set('pin', { key, at: null, pending: !state.demo && !!LIVE_URL });
+  render();
+  pushPin();
+}
+
+async function pushPin() {
+  const p = getPin();
+  if (!p.pending || !LIVE_URL || state.demo) return;
+  try {
+    const r = await fetch(`${liveBase()}/pin`, timeoutOpts({
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: p.key }),
+    }));
+    if (!r.ok) throw new Error(String(r.status));
+    const body = await r.json();
+    // w międzyczasie mogło być kolejne stuknięcie — wtedy ono wygrywa
+    if (getPin().key === p.key) store.set('pin', { key: body?.pin?.key ?? null, at: body?.pin?.at ?? null, pending: false });
+  } catch {
+    flash('Nie udało się zapisać przypięcia — spróbuję przy odświeżeniu');
+  }
+}
+
+/** Przypięty pociąg z odpowiedzi /live — chyba że mamy własną, jeszcze niezapisaną zmianę. */
+function adoptServerPin(body) {
+  if (!body || !('pin' in body) || getPin().pending) return;
+  const sp = body.pin;
+  store.set('pin', { key: sp?.key ?? null, at: sp?.at ?? null, pending: false });
 }
 
 function setDir(dir) {
@@ -119,30 +170,59 @@ function refreshButton() {
 function renderHeader() {
   const dir = currentDir();
   const onKrk = dir === 'krk';
-  if (state.compact) {
-    hdr.innerHTML = `<div class="hdr-in"><div class="hdr-row">
-      <button type="button" class="swap" data-action="swap" data-fid="swap"
-        aria-label="Zmień kierunek, teraz ${onKrk ? 'Do Krakowa' : 'Do Warszawy'}">
-        <span>${onKrk ? 'Do KRK' : 'Do WAW'}</span>${ICON_SWAP}</button>
-      <div class="status">${ages()}${refreshButton()}</div>
-    </div></div>`;
-    return;
-  }
+  const c = state.compact;
+  // Oba układy są zawsze w DOM; zwijanie to tylko klasa `compact` (płynne przejście w CSS),
+  // a niewidoczna część jest `inert` (niedostępna dla fokusu i czytników).
+  hdr.classList.toggle('compact', c);
   hdr.innerHTML = `<div class="hdr-in">
     <div class="hdr-row">
-      <div class="title"><h1>Pociągi</h1><p>${esc(L.dateLong(L.warsawDate(now())))}</p></div>
+      <div class="lead">
+        <div class="title"${c ? ' inert' : ''}><h1>Pociągi</h1><p>${esc(L.dateLong(L.warsawDate(now())))}</p></div>
+        <button type="button" class="swap" data-action="swap" data-fid="swap"${c ? '' : ' inert'}
+          aria-label="Zmień kierunek, teraz ${onKrk ? 'Do Krakowa' : 'Do Warszawy'}">
+          <span>${onKrk ? 'Do KRK' : 'Do WAW'}</span>${ICON_SWAP}</button>
+      </div>
       <div class="status">${ages()}${refreshButton()}</div>
     </div>
-    <div class="dirs" role="group" aria-label="Kierunek jazdy">
-      <button type="button" class="dir" data-action="dir" data-dir="krk" data-fid="dir-krk" aria-pressed="${onKrk}">
-        <span class="sub">z Warszawy</span><span class="big">Do Krakowa</span></button>
-      <button type="button" class="dir" data-action="dir" data-dir="waw" data-fid="dir-waw" aria-pressed="${!onKrk}">
-        <span class="sub">z Krakowa Gł.</span><span class="big">Do Warszawy</span></button>
-    </div>
+    <div class="dirs-wrap"${c ? ' inert' : ''}><div class="dirs-clip">
+      <div class="dirs" role="group" aria-label="Kierunek jazdy">
+        <button type="button" class="dir" data-action="dir" data-dir="krk" data-fid="dir-krk" aria-pressed="${onKrk}">
+          <span class="sub">z Warszawy</span><span class="big">Do Krakowa</span></button>
+        <button type="button" class="dir" data-action="dir" data-dir="waw" data-fid="dir-waw" aria-pressed="${!onKrk}">
+          <span class="sub">z Krakowa Gł.</span><span class="big">Do Warszawy</span></button>
+      </div>
+    </div></div>
   </div>`;
-  // Treść ma stały odstęp = wysokość rozwiniętego nagłówka, więc zwijanie nie przesuwa listy.
-  const h = hdr.offsetHeight;
-  if (h > 0) document.documentElement.style.setProperty('--hdr-h', `${h}px`);
+  measureHeader();
+}
+
+/** Treść ma stały odstęp = wysokość ROZWINIĘTEGO nagłówka (liczona także w trakcie zwijania), więc lista nie skacze. */
+function measureHeader() {
+  const row = hdr.querySelector('.hdr-row');
+  const dirs = hdr.querySelector('.dirs');
+  const wrap = hdr.querySelector('.dirs-wrap');
+  if (!row || !dirs || !wrap) return;
+  const cs = getComputedStyle(hdr);
+  const gap = parseFloat(getComputedStyle(wrap).getPropertyValue('--gap')) || 12;
+  const h = row.offsetHeight + gap + dirs.offsetHeight
+    + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth);
+  if (h > 0) document.documentElement.style.setProperty('--hdr-h', `${Math.round(h)}px`);
+}
+
+/** Zwinięcie/rozwinięcie bez przerysowania — żeby przejście CSS mogło się odegrać. */
+function setCompact(c) {
+  if (c === state.compact) return;
+  state.compact = c;
+  hdr.classList.toggle('compact', c);
+  const title = hdr.querySelector('.title');
+  const swap = hdr.querySelector('.swap');
+  const wrap = hdr.querySelector('.dirs-wrap');
+  const active = document.activeElement;
+  const lostFocus = active && ((c && (title?.contains(active) || wrap?.contains(active))) || (!c && swap?.contains(active)));
+  if (title) title.inert = c;
+  if (wrap) wrap.inert = c;
+  if (swap) swap.inert = !c;
+  if (lostFocus) (c ? swap : hdr.querySelector('.dir[aria-pressed="true"]'))?.focus({ preventScroll: true });
 }
 
 function pillHtml(p) {
@@ -173,6 +253,32 @@ function starHtml(st, pinKey) {
     aria-pressed="${on}" aria-label="${esc(label)}">${ICON_STAR(on ? 'currentColor' : 'none')}</button>`;
 }
 
+/** Przezroczysty przycisk na całym kafelku: stuknięcie rozwija/zwija listę stacji (gwiazdka leży nad nim). */
+function openHtml(train, id = train.key) {
+  if (!Array.isArray(train.stops) || train.stops.length < 2) return '';
+  const on = state.open.has(id);
+  return `<button type="button" class="open" data-action="stops" data-key="${esc(id)}" data-fid="open-${esc(id)}"
+    aria-expanded="${on}" aria-label="${on ? 'Zwiń' : 'Pokaż'} stacje: ${esc(L.trainLabel(train))}"></button>`;
+}
+
+function stopsHtml(train, id = train.key) {
+  if (!state.open.has(id)) return '';
+  const rows = L.stopsView(train, state.live[train.key], now(), state.schedule?.stations || {});
+  if (!rows.length) return '';
+  const nextIdx = rows.findIndex((r) => !r.passed);
+  return `<ol class="stops" aria-label="Stacje">${rows
+    .map((r, i) => {
+      const late = r.delay >= 1;
+      const cls = [r.kind, r.passed ? 'passed' : '', i === nextIdx && nextIdx > 0 ? 'next' : ''].filter(Boolean).join(' ');
+      return `<li class="${cls}">
+        <span class="st-t num"><span class="${late ? 'late' : ''}">${t(r.exp)}</span>${late ? `<s>${t(r.plan)}</s>` : ''}</span>
+        <span class="st-dot" aria-hidden="true"></span>
+        <span class="st-n">${esc(r.name)}${r.passed ? '<span class="vh"> (miniona)</span>' : ''}</span>
+      </li>`;
+    })
+    .join('')}</ol>`;
+}
+
 function pinTile(st) {
   const n = now();
   const p = L.pinPill(st);
@@ -194,6 +300,7 @@ function pinTile(st) {
   }
   const late = !st.cancelled && (st.depDelay >= 1 || st.arrDelay >= 1);
   return `<section class="pin" aria-label="Przypięty pociąg">
+    ${openHtml(st.train, `pin:${st.key}`)}
     <div class="head"><span class="k">Twój pociąg</span><span class="n">${esc(L.trainLabel(st.train))}</span></div>
     <div class="tt">
       ${timesHtml(st, {})}
@@ -202,6 +309,7 @@ function pinTile(st) {
     </div>
     <div class="chips">${chips}${pillHtml(p)}</div>
     ${flagHtml(st.train, 13)}
+    ${stopsHtml(st.train, `pin:${st.key}`)}
   </section>`;
 }
 
@@ -217,6 +325,7 @@ function enrouteCard(st, pinKey) {
   const last = st.lastStation ? ` <span class="last">· ostatnio: ${esc(L.shortStation(st.lastStation))}</span>` : '';
   const pct = Math.round((st.progress ?? 0.5) * 100);
   return `<article class="card go${st.key === pinKey ? ' pinned' : ''}">
+    ${openHtml(st.train)}
     <div class="top">
       <div class="body">
         ${timesHtml(st, { depLate: st.depDelay >= 1, arrLate: st.arrDelay >= 1 })}
@@ -227,13 +336,15 @@ function enrouteCard(st, pinKey) {
       <div class="side">${pillHtml(L.statusPill(st))}${starHtml(st, pinKey)}</div>
     </div>
     <div class="bar" aria-hidden="true"><div style="width:${pct}%"></div></div>
+    ${stopsHtml(st.train)}
   </article>`;
 }
 
 function upcomingCard(st, pinKey) {
   const late = !st.cancelled && st.depDelay >= 1;
   return `<article class="card up${st.key === pinKey ? ' pinned' : ''}${st.cancelled ? ' cancelled' : ''}">
-    <div class="body">
+    ${openHtml(st.train)}
+    <div class="row"><div class="body">
       <div class="tt">
         ${timesHtml(st, { depLate: late, arrLate: late })}
         ${st.cancelled ? '' : planHtml(st)}
@@ -245,17 +356,20 @@ function upcomingCard(st, pinKey) {
       </div>
       ${flagHtml(st.train)}
     </div>
-    ${starHtml(st, pinKey)}
+    ${starHtml(st, pinKey)}</div>
+    ${stopsHtml(st.train)}
   </article>`;
 }
 
 function tomorrowTile(train) {
   const dep = train.from.dep * 1000;
   const arr = train.to.arr * 1000;
-  return `<div class="tile">
+  return `<div class="tile${state.open.has(train.key) ? ' is-open' : ''}">
+    ${openHtml(train)}
     <span class="num"><span class="dep">${t(dep)}</span> <span class="arr"><span aria-hidden="true">→ </span>${t(arr)}</span></span>
     <span class="info">${esc(train.cat)} · ${esc(L.duration(dep, arr))}</span>
     ${flagHtml(train, 11)}
+    ${stopsHtml(train)}
   </div>`;
 }
 
@@ -280,12 +394,11 @@ function renderMain() {
   }
 
   const dir = currentDir();
-  const pinKey = store.get('pin');
+  const pinKey = getPin().key;
   const today = L.warsawDate(n);
   const tomorrow = L.addDays(today, 1);
   const lists = L.todayLists(state.schedule, dir, state.live, n);
   const pinned = L.pinnedState(pinKey, state.schedule, state.live, n);
-  if (pinKey && !pinned) store.del('pin');
   const activePin = pinned ? pinKey : null;
 
   const parts = [];
@@ -366,20 +479,19 @@ async function refreshLive() {
     return;
   }
   if (!LIVE_URL || !state.schedule) return;
-  const keys = L.liveKeys(state.schedule, currentDir(), state.live, now(), store.get('pin'));
   state.refreshing = true;
   renderHeader();
   try {
-    if (keys.length) {
-      const opts = { cache: 'no-store' };
-      if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(LIVE_TIMEOUT_MS);
-      const r = await fetch(`${LIVE_URL.replace(/\/$/, '')}/live?t=${keys.join(',')}`, opts);
-      if (!r.ok) throw new Error(String(r.status));
-      const body = await r.json();
-      const entries = Object.values(body?.trains || {});
-      if (entries.length && entries.every((e) => e?.state === 'error')) throw new Error('all-errors');
-      state.live = L.mergeLive(state.live, body, now());
-    }
+    if (getPin().pending) await pushPin();
+    const keys = L.liveKeys(state.schedule, currentDir(), state.live, now(), getPin().key);
+    // Także bez kursów (np. w nocy): odpowiedź niesie wspólny przypięty pociąg.
+    const r = await fetch(`${liveBase()}/live?t=${keys.join(',')}`, timeoutOpts());
+    if (!r.ok) throw new Error(String(r.status));
+    const body = await r.json();
+    adoptServerPin(body);
+    const entries = Object.values(body?.trains || {});
+    if (entries.length && entries.every((e) => e?.state === 'error')) throw new Error('all-errors');
+    state.live = L.mergeLive(state.live, body, now());
     state.liveAt = now();
     store.set('live', { live: state.live, at: state.liveAt });
   } catch {
@@ -424,32 +536,21 @@ document.addEventListener('click', (e) => {
   else if (a === 'arrived') {
     state.showArrived = !state.showArrived;
     renderMain();
+  } else if (a === 'stops') {
+    const key = btn.dataset.key;
+    if (state.open.has(key)) state.open.delete(key);
+    else state.open.add(key);
+    render();
   } else if (a === 'pin') {
     const key = btn.dataset.key;
-    if (store.get('pin') === key) store.del('pin');
-    else store.set('pin', key);
-    render();
+    setPin(getPin().key === key ? null : key);
   }
 });
 
-window.addEventListener(
-  'scroll',
-  () => {
-    const c = window.scrollY > COMPACT_AT;
-    if (c !== state.compact) {
-      state.compact = c;
-      const fid = document.activeElement?.dataset?.fid;
-      renderHeader();
-      if (fid) document.querySelector(`[data-fid="${CSS.escape(fid)}"]`)?.focus({ preventScroll: true });
-    }
-  },
-  { passive: true },
-);
+window.addEventListener('scroll', () => setCompact(window.scrollY > COMPACT_AT), { passive: true });
 
 // Obrót telefonu / zmiana szerokości → nowa wysokość rozwiniętego nagłówka.
-window.addEventListener('resize', () => {
-  if (!state.compact) renderHeader();
-});
+window.addEventListener('resize', measureHeader);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;

@@ -98,6 +98,15 @@ def test_route_skips_pass_through_and_starts_at_origin(built):
     assert t["route"] == [WSCH, CEN, ZACH, 62000, KRK]
 
 
+def test_segment_stops_with_offsets(built):
+    t = trains(built, 101, "2026-10-24")[0]
+    # przelot (61000) pominięty; przyjazd/odjazd w s względem from.dep; od naszej stacji do naszej stacji
+    assert t["stops"] == [[CEN, -180, 0], [ZACH, 300, 420], [62000, 6000, 6060], [KRK, 8280, 8280]]
+    night = trains(built, 202)[0]  # noc zmiany czasu: offset liczony z epoch, nie z zegara
+    assert night["stops"][-1][1] == 5 * 3600
+    assert night["stops"][-1][1] == night["to"]["arr"] - night["from"]["dep"]
+
+
 def test_through_train_included_with_arrival_platform(built):
     t = trains(built, 102, "2026-10-24")[0]
     assert t["dir"] == "krk" and t["name"] == "Ogończyk"

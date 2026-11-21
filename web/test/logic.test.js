@@ -133,7 +133,45 @@ test('status P before expected departure stays upcoming', () => {
   const t = train({ oid: 3, dep: '08:05', arr: '10:44' });
   const e = okEntry([stop(7500, null, t18('05:00'), true), stop(CEN, t18('08:00'), t18('08:07')), stop(KRK, t18('10:46'))], 'P');
   assert.equal(L.trainState(t, e, at('07:50')).status, 'upcoming');
-  assert.equal(L.trainState(t, e, at('08:08')).status, 'enroute');
+  // bez potwierdzenia odjazdu: „w drodze" dopiero 10 min po oczekiwanym odjeździe
+  assert.equal(L.trainState(t, e, at('08:08')).status, 'upcoming');
+  assert.equal(L.trainState(t, e, at('08:17')).status, 'enroute');
+});
+
+test('through train: arrival at our station confirmed, departure still a forecast → upcoming', () => {
+  // IC z Przemyśla stoi w Krakowie: przyjazd potwierdzony (cf), odjazd 20:15 to prognoza (plan 20:13)
+  const t = train({ oid: 30, dir: 'waw', dep: '20:13', arr: '23:08' });
+  const e = okEntry([
+    stop(90000, null, t18('16:10'), true), stop(KRK, t18('20:05'), t18('20:15'), true),
+    stop(CEN, t18('23:09'))], 'P', '2026-11-18T19:00:00Z');
+  const s = L.trainState(t, e, at('20:01'), STATIONS);
+  assert.equal(s.status, 'upcoming');
+  assert.equal(s.depDelay, 2);
+  assert.equal(L.trainState(t, e, at('20:16'), STATIONS).status, 'enroute');
+  // potwierdzony postój za naszą stacją = na pewno odjechał
+  const later = okEntry([stop(KRK, t18('20:05'), t18('20:20'), true), stop(WLO, t18('21:00'), t18('21:01'), true),
+    stop(CEN, t18('23:09'))], 'P', '2026-11-18T19:00:00Z');
+  assert.equal(L.trainState(t, later, at('20:10'), STATIONS).status, 'enroute');
+});
+
+test('stops view: plan from offsets, live delays, passed stations, duplicated stop', () => {
+  const t = train({ oid: 40, dep: '06:15', arr: '08:58' });
+  t.stops = [[CEN, -180, 0], [ZACH, 360, 480], [WLO, 5400, 5460], [KRK, 9780, 9780]];
+  const plain = L.stopsView(t, null, at('06:00'), STATIONS);
+  assert.deepEqual(plain.map((r) => [r.kind, r.name, L.fmtTime(r.plan), r.passed]), [
+    ['from', 'Warszawa Centralna', '06:15', false], ['mid', 'Warszawa Zachodnia', '06:21', false],
+    ['mid', 'Włoszczowa Północ', '07:45', false], ['to', 'Kraków Główny', '08:58', false]]);
+  // bez danych na żywo: miniona wg rozkładu
+  assert.deepEqual(L.stopsView(t, null, at('07:00'), STATIONS).map((r) => r.passed), [true, true, false, false]);
+
+  const e = okEntry([
+    stop(KRK, t18('04:00'), t18('04:01'), true), // przed naszą stacją — nie myli dopasowania
+    stop(CEN, null, t18('06:23'), true), stop(ZACH, t18('06:29'), t18('06:31'), true),
+    stop(WLO, t18('07:52'), t18('07:53')), stop(KRK, t18('09:06'))], 'P', '2026-11-18T06:49:00Z');
+  const rows = L.stopsView(t, e, at('07:50'), STATIONS);
+  assert.deepEqual(rows.map((r) => [L.fmtTime(r.exp), r.delay, r.passed, r.confirmed]), [
+    ['06:23', 8, true, true], ['06:29', 8, true, true], ['07:52', 7, false, false], ['09:06', 8, false, false]]);
+  assert.deepEqual(L.stopsView({ ...t, stops: undefined }, e, at('07:50')), []);
 });
 
 test('arrived by confirmed arrival or status C', () => {

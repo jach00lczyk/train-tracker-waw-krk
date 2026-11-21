@@ -181,7 +181,8 @@ sprawdzone fragmenty zamiast pisać od zera; schemat wyjścia jest inny (JSON, s
       "from": {"id": 0, "dep": 1763709900, "platform": "4", "track": "2", "bus": false},
       "to":   {"id": 80416, "arr": 1763719440, "platform": "3", "track": "5", "bus": false},
       "waw_station": 0,
-      "route": [/* ID stacji z postojami, w kolejności, od początku kursu */]
+      "route": [/* ID stacji z postojami, w kolejności, od początku kursu */],
+      "stops": [[33605, -180, 0], [33506, 300, 420], [80416, 8280, 8280]]
     }
   ]
 }
@@ -189,6 +190,9 @@ sprawdzone fragmenty zamiast pisać od zera; schemat wyjścia jest inny (JSON, s
 
 - `stations` zawiera nazwy **wszystkich stacji z `route`** naszych pociągów (do „ostatnio: …").
 - `route` jest potrzebne do ustalenia ostatniej minionej stacji i do dopasowania danych na żywo.
+- `stops` — postoje odcinka od `from` do `to` (włącznie, bez przelotów): `[id, przyjazd, odjazd]`, czasy
+  w sekundach **względem `from.dep`** (zwarty zapis; liczone z epoch, więc poprawne w noc zmiany czasu).
+  Do rozwijanej listy stacji (8.10). Pole dodatkowe — strona bez niego po prostu nie rozwija kafelka.
 - Sortowanie: `date`, `dir`, `from.dep`.
 - Rozmiar < 300 KB (walidacja).
 
@@ -245,7 +249,16 @@ Zwykłe żądanie GET bez własnych nagłówków (bez preflightu CORS).
   (czas lokalny bez offsetu, Europe/Warsaw), `cf` = `isConfirmed` (false = prognoza PLK),
   `cx` = `isCancelled`. `train_status` jak w `TrainRun.kt` z karoo-kolejka:
   S/N = nie wyruszył, P = w drodze, C/F = zakończony, X = odwołany, Q = częściowo odwołany.
-- Klucze nieznane / zły format → 400. Wynik zawsze bez klucza API i bez nagłówków upstream.
+- Klucze nieznane / zły format → 400. Brak lub pusty `t` → `trains: {}` (strona pyta wtedy tylko o
+  przypięty pociąg). Wynik zawsze bez klucza API i bez nagłówków upstream.
+- `pin` — wspólny przypięty pociąg (5.5): `{"key": "2026/…/2026-11-21" | null, "at": "<czas zapisu>"}`
+  albo `null` (nic nie zapisano). Pole pominięte, gdy Worker nie ma powiązania KV.
+
+```
+PUT {LIVE_URL}/pin    body: {"key": "<sid>/<oid>/<date>"} albo {"key": null}    → {"pin": {key, at}}
+```
+Zapis w Workers KV (`STATE`, klucz `pin`); `at` = czas Workera. Walidacja jak w `t`, ciało ≤ 200 B,
+maks. 60 zapisów/h na izolat (KV free: 1000 zapisów/dobę). CORS: preflight `GET, PUT` + `Content-Type`.
 
 ### 4.2 Strategia upstream (wybór w fazie 0)
 
@@ -325,7 +338,10 @@ Dla pociągu z `from`/`to` i odpowiedzi Workera (`stops`). Dane starsze niż **3
 5. Status:
    - `arrived` — `toStop.aa` z `cf` albo `train_status ∈ {C, F}`;
      bez danych na żywo: `now ≥ planowy przyjazd`,
-   - `enroute` — `fromStop.ad` z `cf` albo `train_status == "P"` i minięty odjazd;
+   - `enroute` — dopiero po odjeździe z **naszej** stacji: potwierdzony (`cf`) postój za `fromStop`,
+     albo `fromStop` z `cf` i `ad ≤ now`, albo `train_status == "P"` i `now ≥ oczekiwany odjazd + 10 min`
+     (PLK nie potwierdził odjazdu). Status P sam nie wystarcza — pociąg przelotowy (np. z Przemyśla)
+     jest „P" już przed Krakowem, a `cf` na naszym postoju bywa ustawione po samym przyjeździe;
      bez danych: `now ≥ planowy odjazd`,
    - `upcoming` — pozostałe,
    - `cancelled` — z pkt 2 (na liście w miejscu wg planowego odjazdu).
@@ -352,7 +368,11 @@ Dla pociągu z `from`/`to` i odpowiedzi Workera (`stops`). Dane starsze niż **3
 
 ### 5.5 Przypięty pociąg
 
-- Jeden naraz. `localStorage["pin"] = key`. Gwiazdka na innym pociągu zastępuje poprzedni.
+- Jeden naraz, **wspólny dla wszystkich urządzeń** (decyzja właściciela, 21.11.2026): zapis `PUT /pin`
+  w Workerze (KV), odczyt z pola `pin` odpowiedzi `/live` — bez osobnego pollingu (6). Kopia lokalna
+  `localStorage["pin"] = {key, at, pending}`; `pending` = zmiana niezapisana w Workerze (ponowienie przy
+  następnym odświeżeniu; do tego czasu lokalna zmiana wygrywa). Gwiazdka na innym pociągu zastępuje
+  poprzedni. Każdy z linkiem może go zmienić (świadomie: link zna tylko rodzina).
 - Kafelek pokazuje się **niezależnie od wybranego kierunku** (to „jej" pociąg).
 - Znika samoczynnie 15 min po przyjeździe albo gdy data kursu jest starsza niż wczoraj.
 - Przypinać można pociągi z listy „Dziś" (nadchodzące i w drodze); odwołanego nie.
@@ -368,7 +388,9 @@ Zmiana kierunku → natychmiastowe odświeżenie dla nowego kierunku.
 ## 6. Odświeżanie (jedyny polling)
 
 - Przy otwarciu, przy powrocie do karty (`visibilitychange` → visible, jeśli ostatnie > 60 s temu),
-  przy zmianie kierunku, po przycisku i **co 60 s, tylko gdy strona jest widoczna**.
+  przy zmianie kierunku, po przycisku i **co 60 s, tylko gdy strona jest widoczna**. Zapytanie idzie
+  także bez kursów do sprawdzenia (pusty `t`) — niesie wspólny przypięty pociąg (5.5). Jedyne inne
+  zapytanie do Workera: `PUT /pin` po stuknięciu gwiazdki (bez timera).
 - Karta w tle → zero zapytań. Żadnych innych timerów poza tikiem 30 s, który przelicza etykiety
   (wiek odświeżenia, odliczanie, statusy wg `now`) bez sieci.
 - Przycisk odświeżania: zawsze wysyła zapytanie (Worker i tak ma cache); w trakcie ikona się kręci
@@ -389,6 +411,9 @@ Zmiana kierunku → natychmiastowe odświeżenie dla nowego kierunku.
 - `app.js` — stan w jednym obiekcie, render całego widoku do kontenera po każdej zmianie stanu
   (lista jest mała — bez wirtualnego DOM i bez frameworka). Zdarzenia przez delegację.
 - Safe area: `padding-top: env(safe-area-inset-top)` w przyklejonym nagłówku.
+- `apple-mobile-web-app-status-bar-style` = **`default`** (nie `black-translucent`): od iOS 26.1 przy
+  `black-translucent` system rozmywa górę aplikacji z ekranu głównego i CSS tego nie wyłączy. iOS czyta
+  to przy instalacji — po zmianie trzeba usunąć ikonę i dodać ją ponownie.
 - Bez service workera w v1 (świeżość danych > offline; ostatni stan i tak jest w `localStorage`).
 
 ---
@@ -442,7 +467,9 @@ Kontrast tekstu ≥ 4.5:1 (sprawdzone w makiecie — nie zmieniaj par kolorów b
 **Zwinięty** (scroll > 60 px): jeden wiersz — limonkowy przycisk „Do KRK" / „Do WAW" z ikoną ⇄
 (stuknięcie przełącza kierunek; `aria-label` z pełną nazwą), po prawej te same napisy wieku i przycisk
 odświeżania. Przejście bez skoku treści (wysokość nagłówka zmienia się, ale lista nie „podskakuje" —
-zachowaj pozycję przewinięcia).
+zachowaj pozycję przewinięcia). **Płynne** (~0,25 s): oba układy są stale w DOM, przełączana jest tylko
+klasa `compact` — tytuł i „Do KRK" przenikają się w jednej komórce, przełącznik zwija się do zera
+(`grid-template-rows`); niewidoczna część jest `inert`. `prefers-reduced-motion` → bez animacji.
 
 ### 8.3 Kafelek „Twój pociąg" (limonka)
 
@@ -495,6 +522,16 @@ widoczny `:focus-visible`.
 `Loading` (pierwsze otwarcie bez danych — szkielet kart), `DataMissing` („Brak rozkładu na dziś —
 sprawdź workflow"), `DataStale` (czerwone „rozkład z wczoraj", lista działa na starych danych),
 `LiveError` (stare dane + rosnący wiek odświeżenia), `NoTrainsLeft` (8.4 pkt 5).
+
+### 8.10 Lista stacji (rozwijany kafelek)
+
+Stuknięcie w kartę „Dziś", kafelek „Twój pociąg" albo kafelek „Jutro" rozwija pod nim listę postojów
+odcinka WAW–KRK (`stops`, 3.4): godzina (odjazd na stacji początkowej, przyjazd na pozostałych), oś
+z kropkami, nazwa (stacje krańcowe pogrubione). Z danymi na żywo: oczekiwana godzina (rdzawa przy
+opóźnieniu ≥ 1 min) i przekreślona planowa; miniona stacja (potwierdzona i po odjeździe) przygaszona,
+następna wyróżniona kropką. Bez danych na żywo — rozkład (miniona wg planu). Mechanika: przezroczysty
+`<button aria-expanded>` na całym kafelku, gwiazdka nad nim; stan rozwinięcia tylko w pamięci karty.
+Kafelek „Jutro" rozwinięty zajmuje całą szerokość siatki. Logika: `stopsView` w `logic.js` (z testami).
 
 ---
 

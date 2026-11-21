@@ -36,6 +36,11 @@ function makeTrain(def, dir, date, oid) {
     to: { id: r[r.length - 1], arr: arr / 1000, platform: '3', track: '5', bus: false },
     waw_station: def.wg ? GDA : CEN,
     route: r,
+    // jak w pipeline: [id, przyjazd, odjazd] w s względem from.dep
+    stops: r.map((id, i) => {
+      const a = Math.round((FRACTIONS[i] * (arr - dep)) / 1000);
+      return [id, a, i === 0 || i === r.length - 1 ? a : a + 60];
+    }),
   };
 }
 

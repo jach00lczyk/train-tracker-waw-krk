@@ -1,4 +1,5 @@
-// Pośrednik opóźnień na żywo (SPEC 4). Jeden endpoint: GET /live?t=<sid>/<oid>/<data>,…
+// Pośrednik opóźnień na żywo (SPEC 4): GET /live?t=<sid>/<oid>/<data>,…
+// oraz wspólny przypięty pociąg (SPEC 5.5): pole `pin` w odpowiedzi /live, zapis PUT /pin (Workers KV).
 // Trzyma klucz PDP_API_KEY (sekret Workera) — klucz nigdy nie trafia do odpowiedzi ani logów.
 // Strategia upstream B: /api/v1/operations/train/{sid}/{oid}/{data} per kurs, z cache i limitem.
 // Zero zależności runtime.
@@ -18,6 +19,9 @@ export const TTL = {
   error: 30, // 5xx, sieć, inne
 };
 const DEFAULT_RETRY_AFTER_S = 300;
+const PIN_KV_KEY = 'pin';
+const MAX_PIN_WRITES_PER_HOUR = 60; // limit KV (darmowy: 1000 zapisów/dobę) — z zapasem
+const MAX_PIN_BODY = 200;
 
 export function ttlFor(entry) {
   if (entry.state === 'none') return TTL.none;
@@ -30,20 +34,22 @@ export function ttlFor(entry) {
 
 /** Stan izolatu: limit godzinowy i wstrzymanie po 429 (best effort, SPEC 13). */
 export function createState() {
-  return { requests: [], pausedUntil: 0 };
+  return { requests: [], pausedUntil: 0, pinWrites: [] };
 }
 
+export function validKey(k) {
+  const m = KEY_RE.exec(k);
+  if (!m) return false;
+  const d = new Date(m[3] + 'T00:00:00Z');
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === m[3];
+}
+
+/** Lista kursów z `t`; brak/pusty `t` = [] (strona pyta tylko o przypięty pociąg); null = błędne. */
 export function parseKeys(param) {
-  if (!param) return null;
+  if (param == null || param === '') return [];
   const keys = [...new Set(param.split(','))];
   if (keys.length === 0 || keys.length > MAX_KEYS) return null;
-  for (const k of keys) {
-    const m = KEY_RE.exec(k);
-    if (!m) return null;
-    const d = new Date(m[3] + 'T00:00:00Z');
-    if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== m[3]) return null;
-  }
-  return keys;
+  return keys.every(validKey) ? keys : null;
 }
 
 function allowedOrigins(env) {
@@ -163,6 +169,48 @@ async function fetchUpstream(key, env, deps, state) {
   return { entry, cache: true };
 }
 
+// --------------------------------------------------------------------------- przypięty pociąg
+
+/** {key, at} albo null; brak KV (np. testy lokalne bez wiązania) → undefined = pole pomijane. */
+async function pinRead(kv) {
+  if (!kv) return undefined;
+  try {
+    const v = await kv.get(PIN_KV_KEY, { type: 'json' });
+    return v && (v.key === null || validKey(v.key)) ? { key: v.key, at: v.at } : null;
+  } catch {
+    return undefined;
+  }
+}
+
+async function handlePin(request, env, deps, state, origin) {
+  if (request.method !== 'PUT') return json({ error: 'method_not_allowed' }, 405, origin);
+  if (!deps.kv) return json({ error: 'unavailable' }, 503, origin);
+  const nowMs = deps.now();
+  let body;
+  try {
+    const text = await request.text();
+    if (text.length > MAX_PIN_BODY) throw new Error('size');
+    body = JSON.parse(text);
+  } catch {
+    return json({ error: 'bad_request' }, 400, origin);
+  }
+  const key = body?.key ?? null;
+  if (key !== null && (typeof key !== 'string' || !validKey(key))) return json({ error: 'bad_request' }, 400, origin);
+  state.pinWrites = state.pinWrites.filter((t) => nowMs - t < HOUR_MS);
+  if (state.pinWrites.length >= MAX_PIN_WRITES_PER_HOUR) return json({ error: 'rate_limited' }, 429, origin);
+  state.pinWrites.push(nowMs);
+  const pin = { key, at: iso(nowMs) };
+  try {
+    await deps.kv.put(PIN_KV_KEY, JSON.stringify(pin));
+  } catch {
+    return json({ error: 'storage' }, 502, origin);
+  }
+  deps.log(`pin ${key ? 'set' : 'cleared'}`);
+  return json({ pin }, 200, origin);
+}
+
+// --------------------------------------------------------------------------- wejście
+
 export async function handle(request, env, deps, state) {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
@@ -175,13 +223,15 @@ export async function handle(request, env, deps, state) {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': okOrigin,
-        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Methods': 'GET, PUT',
+        'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Max-Age': '86400',
         Vary: 'Origin',
       },
     });
   }
   if (!okOrigin) return json({ error: 'forbidden' }, 403, null);
+  if (url.pathname === '/pin') return handlePin(request, env, deps, state, okOrigin);
   if (url.pathname !== '/live') return json({ error: 'not_found' }, 404, okOrigin);
   if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, okOrigin);
 
@@ -220,7 +270,10 @@ export async function handle(request, env, deps, state) {
   );
   const ordered = {};
   for (const key of keys) ordered[key] = trains[key];
-  return json({ fetched_at: iso(nowMs), trains: ordered }, 200, okOrigin);
+  const out = { fetched_at: iso(nowMs), trains: ordered };
+  const pin = await pinRead(deps.kv);
+  if (pin !== undefined) out.pin = pin;
+  return json(out, 200, okOrigin);
 }
 
 const isolateState = createState();
@@ -232,6 +285,7 @@ export default {
       cache: typeof caches !== 'undefined' ? caches.default : null,
       now: () => Date.now(),
       log: (msg) => console.log(msg),
+      kv: env.STATE || null, // Workers KV na wspólny przypięty pociąg (wrangler.toml)
     };
     try {
       return await handle(request, env, deps, isolateState);
