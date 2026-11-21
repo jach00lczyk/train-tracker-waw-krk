@@ -1,0 +1,139 @@
+{
+ "scheduleId": 2026,
+ "orderId": 863448136,
+ "trainOrderId": 811496247,
+ "operatingDate": "2026-11-21",
+ "trainStatus": "C",
+ "stations": [
+  {
+   "stationId": 82669,
+   "plannedSequenceNumber": 1,
+   "actualSequenceNumber": 1,
+   "actualDeparture": "2026-11-21T06:33:00",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 81208,
+   "plannedSequenceNumber": 6,
+   "actualSequenceNumber": 6,
+   "actualArrival": "2026-11-21T06:58:30",
+   "actualDeparture": "2026-11-21T06:59:00",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 80630,
+   "plannedSequenceNumber": 10,
+   "actualSequenceNumber": 10,
+   "actualArrival": "2026-11-21T07:13:30",
+   "actualDeparture": "2026-11-21T07:15:30",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 79657,
+   "plannedSequenceNumber": 16,
+   "actualSequenceNumber": 16,
+   "actualArrival": "2026-11-21T07:32:00",
+   "actualDeparture": "2026-11-21T07:32:30",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 79905,
+   "plannedSequenceNumber": 22,
+   "actualSequenceNumber": 22,
+   "actualArrival": "2026-11-21T07:47:30",
+   "actualDeparture": "2026-11-21T07:48:00",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 80416,
+   "plannedSequenceNumber": 24,
+   "actualSequenceNumber": 24,
+   "actualArrival": "2026-11-21T07:53:00",
+   "actualDeparture": "2026-11-21T07:56:00",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 33506,
+   "plannedSequenceNumber": 55,
+   "actualSequenceNumber": 54,
+   "actualArrival": "2026-11-21T10:23:12",
+   "actualDeparture": "2026-11-21T10:26:12",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 33605,
+   "plannedSequenceNumber": 57,
+   "actualSequenceNumber": 56,
+   "actualArrival": "2026-11-21T10:30:42",
+   "actualDeparture": "2026-11-21T10:32:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 38653,
+   "plannedSequenceNumber": 58,
+   "actualSequenceNumber": 57,
+   "actualArrival": "2026-11-21T10:37:42",
+   "actualDeparture": "2026-11-21T10:39:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 21808,
+   "plannedSequenceNumber": 85,
+   "actualSequenceNumber": 84,
+   "actualArrival": "2026-11-21T12:02:12",
+   "actualDeparture": "2026-11-21T12:04:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 7872,
+   "plannedSequenceNumber": 91,
+   "actualSequenceNumber": 90,
+   "actualArrival": "2026-11-21T12:37:12",
+   "actualDeparture": "2026-11-21T12:37:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 7112,
+   "plannedSequenceNumber": 94,
+   "actualSequenceNumber": 93,
+   "actualArrival": "2026-11-21T12:47:12",
+   "actualDeparture": "2026-11-21T12:49:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 7500,
+   "plannedSequenceNumber": 101,
+   "actualSequenceNumber": 100,
+   "actualArrival": "2026-11-21T13:02:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 7534,
+   "plannedSequenceNumber": 102,
+   "actualSequenceNumber": 101,
+   "actualArrival": "2026-11-21T13:07:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 7583,
+   "plannedSequenceNumber": 104,
+   "actualSequenceNumber": 103,
+   "actualArrival": "2026-11-21T13:10:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 5942,
+   "plannedSequenceNumber": 106,
+   "actualSequenceNumber": 105,
+   "actualArrival": "2026-11-21T13:16:42",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 5900,
+   "plannedSequenceNumber": 108,
+   "actualSequenceNumber": 107,
+   "actualArrival": "2026-11-21T13:24:42",
+   "isConfirmed": true
+  }
+ ]
+}

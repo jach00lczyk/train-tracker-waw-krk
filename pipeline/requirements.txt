@@ -1,0 +1,2 @@
+# build_trains.py i recon.py korzystają wyłącznie z biblioteki standardowej; poniżej tylko testy.
+pytest==8.3.5

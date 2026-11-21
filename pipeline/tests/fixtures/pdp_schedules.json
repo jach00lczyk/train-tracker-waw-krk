@@ -1,0 +1,134 @@
+{
+  "_": "Ręczny fixture w formacie /schedules/shortened (fullRoute=true, dictionaries=true). Dziś w testach: 2026-10-24 (sobota); 25.10 = zmiana czasu (03:00 CEST → 02:00 CET).",
+  "ts": "2026-10-24T01:30:00Z",
+  "pr": {"f": "2026-10-23T00:00:00", "t": "2026-10-27T00:00:00"},
+  "rt": [
+    {"_": "EIP Wschodnia → Centralna → Zachodnia → Kraków: wybór Centralnej; inny peron 25.10 (pv)",
+     "sid": 2026, "oid": 101, "toid": 101, "cc": "IC", "nn": "1300", "ccs": "EIP",
+     "od": ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28"],
+     "st": [
+       {"id": 34868, "ord": 1, "dpl": "2", "dtr": "3", "dtm": "05:10:00"},
+       {"id": 33605, "ord": 2, "apl": "4", "atr": "2", "atm": "05:17:00", "dpl": "4", "dtr": "2", "dtm": "05:20:00",
+        "pv": [{"od": ["2026-10-25"], "apl": "6", "atr": "12", "dpl": "6", "dtr": "12"}]},
+       {"id": 33506, "ord": 3, "apl": "5", "atm": "05:25:00", "dpl": "5", "dtm": "05:27:00"},
+       {"id": 61000, "ord": 4},
+       {"id": 62000, "ord": 5, "atm": "07:00:00", "dtm": "07:01:00"},
+       {"id": 80416, "ord": 6, "apl": "3", "atr": "5", "atm": "07:38:00"}
+     ]},
+    {"_": "IC przelotowy Gdynia → Warszawa → Kraków → Przemyśl; w Krakowie peron przyjazdu ≠ odjazdu",
+     "sid": 2026, "oid": 102, "toid": 102, "cc": "IC", "nn": "5100", "ccs": "IC", "nm": "Ogończyk",
+     "od": ["2026-10-24", "2026-10-25", "2026-10-26"],
+     "st": [
+       {"id": 7500, "ord": 1, "dpl": "1", "dtm": "03:00:00"},
+       {"id": 33605, "ord": 2, "apl": "2", "atr": "4", "atm": "06:10:00", "dpl": "2", "dtr": "4", "dtm": "06:15:00"},
+       {"id": 80416, "ord": 3, "apl": "3", "atr": "5", "atm": "08:58:00", "dpl": "4", "dtr": "6", "dtm": "09:05:00"},
+       {"id": 90000, "ord": 4, "apl": "1", "atm": "12:00:00"}
+     ]},
+    {"_": "Objazd: jedyna stacja warszawska to Gdańska, odjazd autobusem ZKA (peron BUS)",
+     "sid": 2026, "oid": 103, "toid": 103, "cc": "IC", "nn": "1308", "ccs": "EIP",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 36103, "ord": 1, "dpl": "BUS", "dtm": "09:35:00"},
+       {"id": 80416, "ord": 2, "apl": "1", "atr": "1", "atm": "11:53:00"}
+     ]},
+    {"_": "Przejazd przez Kraków bez postoju — odrzucony",
+     "sid": 2026, "oid": 104, "toid": 104, "cc": "IC", "nn": "3600", "ccs": "IC",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 33605, "ord": 1, "dpl": "1", "dtm": "10:00:00"},
+       {"id": 80416, "ord": 2},
+       {"id": 90000, "ord": 3, "atm": "14:00:00"}
+     ]},
+    {"_": "Bez Krakowa (Warszawa → Katowice) — odrzucony",
+     "sid": 2026, "oid": 105, "toid": 105, "cc": "IC", "nn": "1400", "ccs": "EIP",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 33605, "ord": 1, "dpl": "1", "dtm": "11:00:00"},
+       {"id": 70000, "ord": 2, "atm": "13:30:00"}
+     ]},
+    {"_": "Typy postoju: na Centralnej tylko wysiadanie → wybór Zachodniej",
+     "sid": 2026, "oid": 106, "toid": 106, "cc": "IC", "nn": "3504", "ccs": "IC",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 34868, "ord": 1, "dpl": "1", "dtm": "07:50:00", "sti": 0},
+       {"id": 33605, "ord": 2, "atm": "07:57:00", "dtm": "08:00:00", "sti": 2},
+       {"id": 33506, "ord": 3, "apl": "7", "atr": "9", "atm": "08:05:00", "dpl": "7", "dtr": "9", "dtm": "08:07:00"},
+       {"id": 80416, "ord": 4, "apl": "2", "atm": "10:44:00"}
+     ]},
+    {"_": "W Krakowie tylko wsiadanie — nie da się dojechać, odrzucony",
+     "sid": 2026, "oid": 107, "toid": 107, "cc": "IC", "nn": "3700", "ccs": "IC",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 33605, "ord": 1, "dpl": "1", "dtm": "12:00:00"},
+       {"id": 80416, "ord": 2, "atm": "14:30:00", "dtm": "14:35:00", "sti": 1},
+       {"id": 90000, "ord": 3, "atm": "17:00:00"}
+     ]},
+    {"_": "EIP Kraków → Warszawa Centralna → Wschodnia",
+     "sid": 2026, "oid": 203, "toid": 203, "cc": "IC", "nn": "1301", "ccs": "EIP",
+     "od": ["2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"],
+     "st": [
+       {"id": 80416, "ord": 1, "dpl": "4", "dtr": "8", "dtm": "05:00:00"},
+       {"id": 33506, "ord": 2, "atm": "07:10:00", "dtm": "07:11:00"},
+       {"id": 33605, "ord": 3, "apl": "3", "atr": "1", "atm": "07:18:00", "dtm": "07:21:00"},
+       {"id": 34868, "ord": 4, "apl": "1", "atm": "07:28:00"}
+     ]},
+    {"_": "TLK Kraków → Warszawa po północy (ady)",
+     "sid": 2026, "oid": 201, "toid": 201, "cc": "IC", "nn": "31101", "ccs": "TLK",
+     "od": ["2026-10-24", "2026-10-25", "2026-10-26"],
+     "st": [
+       {"id": 80416, "ord": 1, "dpl": "2", "dtr": "4", "dtm": "21:35:00"},
+       {"id": 33605, "ord": 2, "apl": "1", "atm": "00:58:00", "ady": 1}
+     ]},
+    {"_": "Noc zmiany czasu: odjazd 23:30 CEST 24.10, przyjazd 03:30 CET 25.10 → 5 h, nie 4 h",
+     "sid": 2026, "oid": 202, "toid": 202, "cc": "IC", "nn": "38170", "ccs": "IC",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 80416, "ord": 1, "dpl": "1", "dtm": "23:30:00"},
+       {"id": 33605, "ord": 2, "atm": "03:30:00", "ady": 1}
+     ]},
+    {"_": "Międzynarodowy Wilno → Kraków: odcinek litewski w czasie UTC+2 (czas „cofa się” na granicy) — zostaje",
+     "sid": 2026, "oid": 108, "toid": 108, "cc": "IC", "nn": "13000", "ccs": "IC",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 95000, "ord": -40, "dtm": "12:35:00"},
+       {"id": 95001, "ord": 1, "atm": "15:12:00", "dtm": "15:12:00"},
+       {"id": 95002, "ord": 3, "atm": "14:27:00", "dtm": "14:42:00"},
+       {"id": 34868, "ord": 42, "apl": "2", "atm": "18:59:00", "dpl": "2", "dtm": "19:01:00"},
+       {"id": 33605, "ord": 43, "apl": "3", "atr": "6", "atm": "19:07:00", "dpl": "3", "dtr": "6", "dtm": "19:28:00"},
+       {"id": 80416, "ord": 76, "apl": "4", "atm": "22:24:00"}
+     ]},
+    {"_": "Leo Express Kraków → Zachodnia → Centralna → Wschodnia (ccs Ex) — wchodzi, wysiadka na Centralnej",
+     "sid": 2026, "oid": 401, "toid": 401, "cc": "Leo Express", "nn": "3114", "ccs": "Ex",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 80416, "ord": 1, "dpl": "3", "dtm": "15:38:00"},
+       {"id": 33506, "ord": 2, "apl": "5", "atm": "18:29:30", "dpl": "5", "dtm": "18:30:30"},
+       {"id": 33605, "ord": 3, "apl": "1", "atm": "18:36:00", "dpl": "1", "dtm": "18:38:00"},
+       {"id": 34868, "ord": 4, "apl": "4", "atm": "18:43:00"}
+     ]},
+    {"_": "Inny przewoźnik — odrzucony",
+     "sid": 2026, "oid": 301, "toid": 301, "cc": "KM", "nn": "19201", "ccs": "R",
+     "od": ["2026-10-24"],
+     "st": [
+       {"id": 33605, "ord": 1, "dtm": "06:00:00"},
+       {"id": 80416, "ord": 2, "atm": "10:30:00"}
+     ]}
+  ],
+  "dc": {
+    "st": {
+      "7500": {"id": 7500, "nm": "Gdynia Główna", "lat": 54.52, "lon": 18.53},
+      "33506": {"id": 33506, "nm": "Warszawa Zachodnia", "lat": 52.22, "lon": 20.965},
+      "33605": {"id": 33605, "nm": "Warszawa Centralna", "lat": 52.2287, "lon": 21.0027},
+      "34868": {"id": 34868, "nm": "Warszawa Wschodnia", "lat": 52.2516, "lon": 21.0526},
+      "36103": {"id": 36103, "nm": "Warszawa Gdańska", "lat": 52.2592, "lon": 20.9934},
+      "61000": {"id": 61000, "nm": "Opoczno Południe", "lat": 51.36, "lon": 20.29},
+      "62000": {"id": 62000, "nm": "Włoszczowa Północ", "lat": 50.87, "lon": 19.97},
+      "70000": {"id": 70000, "nm": "Katowice", "lat": 50.257, "lon": 19.017},
+      "80416": {"id": 80416, "nm": "Kraków Główny", "lat": 50.0677, "lon": 19.9475},
+      "90000": {"id": 90000, "nm": "Przemyśl Główny", "lat": 49.78, "lon": 22.77},
+      "95000": {"id": 95000, "nm": "Vilnius", "lat": 54.67, "lon": 25.28},
+      "95001": {"id": 95001, "nm": "Mockava", "lat": 54.18, "lon": 23.15},
+      "95002": {"id": 95002, "nm": "Trakiszki", "lat": 54.17, "lon": 23.1}
+    }
+  }
+}

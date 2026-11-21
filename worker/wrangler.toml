@@ -1,0 +1,12 @@
+name = "train-tracker-waw-krk"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+# Adres strony (GitHub Pages). Lokalnie można dopisać po przecinku http://localhost:8000 w .dev.vars.
+ALLOWED_ORIGIN = "https://jach00lczyk.github.io"
+# Klucz wspólny z karoo-kolejka (do 60/h) — pakiet Basic ma 100/h na klucz (SPEC 15.1).
+MAX_UPSTREAM_PER_HOUR = "30"
+
+# Sekret (nie tutaj!): npx wrangler secret put PDP_API_KEY

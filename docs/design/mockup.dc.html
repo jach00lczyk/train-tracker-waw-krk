@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Pociągi — rano, do Krakowa</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; background: #55630F; color: #1F2708; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif">
+<div ref="{{scrollRef}}" onScroll="{{onScroll}}" style="height: 844px; overflow-y: auto; overflow-x: hidden">
+
+<div style="position: sticky; top: 0; z-index: 2; background: #55630F; border-bottom: 1px solid #47530C; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px">
+
+<sc-if value="{{expanded}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: #BEF264">Pociągi</h1>
+<p style="margin: 0; font-size: 13px; color: #D9F99D">{{dateLabel}}</p>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0">
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: {{refPad}}; background: {{refBg}}; color: {{refFg}}">{{refText}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: {{schPad}}; background: {{schBg}}; color: {{schFg}}">{{schText}}</span>
+</div>
+<button type="button" aria-label="Odśwież opóźnienia" onClick="{{refresh}}" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 22px; border: 1px solid #6B7A1E; background: #47530C; color: #BEF264; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"></path><path d="M20 4v5h-5"></path></svg>
+</button>
+</div>
+</div>
+
+<div role="group" aria-label="Kierunek jazdy" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 5px; background: #47530C; border-radius: 18px">
+<button type="button" aria-pressed="{{krkPressed}}" onClick="{{pickKrk}}" style="min-height: 68px; border: 0; border-radius: 14px; background: {{krkBg}}; color: {{krkFg}}; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 10px 14px; text-align: left; cursor: pointer; font-family: inherit">
+<span style="display: block; font-size: 13px; color: {{krkSub}}">z Warszawy</span>
+<span style="display: block; font-size: 21px; font-weight: 700; line-height: 1.1">Do Krakowa</span>
+</button>
+<button type="button" aria-pressed="{{wawPressed}}" onClick="{{pickWaw}}" style="min-height: 68px; border: 0; border-radius: 14px; background: {{wawBg}}; color: {{wawFg}}; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 10px 14px; text-align: left; cursor: pointer; font-family: inherit">
+<span style="display: block; font-size: 13px; color: {{wawSub}}">z Krakowa Gł.</span>
+<span style="display: block; font-size: 21px; font-weight: 700; line-height: 1.1">Do Warszawy</span>
+</button>
+</div>
+
+</sc-if>
+
+<sc-if value="{{compact}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px">
+<button type="button" aria-label="Zmień kierunek, teraz {{dirLabel}}" onClick="{{swapDir}}" style="flex-shrink: 0; min-height: 44px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 12px; background: #BEF264; color: #1F2708; padding: 0 12px 0 14px; font-family: inherit; font-size: 18px; font-weight: 700; text-align: left; cursor: pointer">
+<span>{{dirShort}}</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4L3 8l4 4"></path><path d="M3 8h14"></path><path d="M17 20l4-4-4-4"></path><path d="M21 16H7"></path></svg>
+</button>
+<div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto">
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 3px">
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: {{refPad}}; background: {{refBg}}; color: {{refFg}}">{{refText}}</span>
+<span style="font-size: 12px; font-weight: 600; border-radius: 6px; padding: {{schPad}}; background: {{schBg}}; color: {{schFg}}">{{schText}}</span>
+</div>
+<button type="button" aria-label="Odśwież opóźnienia" onClick="{{refresh}}" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 22px; border: 1px solid #6B7A1E; background: #47530C; color: #BEF264; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"></path><path d="M20 4v5h-5"></path></svg>
+</button>
+</div>
+</div>
+</sc-if>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 20px; padding: 16px 16px 32px">
+
+<sc-if value="{{hasPin}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Przypięty pociąg" style="background: #BEF264; color: #1F2708; border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #3F4A12">Twój pociąg</span>
+<span style="font-size: 14px; font-weight: 600">{{pin.train}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 8px">
+<span style="font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -0.02em">{{pin.depT}}</span>
+<span aria-hidden="true" style="font-size: 24px; color: #3F4A12">→</span>
+<span style="font-size: 30px; font-weight: 700; line-height: 1; letter-spacing: -0.01em">{{pin.arrT}}</span>
+</div>
+<sc-if value="{{pin.hasPlan}}" hint-placeholder-val="{{ false }}">
+<span style="display: block; font-size: 13px; color: #3F4A12; text-decoration: line-through">{{pin.planLine}}</span>
+</sc-if>
+<span style="font-size: 18px; font-weight: 700; margin-top: 4px">{{pin.countdown}}</span>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+<sc-if value="{{pin.hasPeron}}" hint-placeholder-val="{{ true }}">
+<span style="font-size: 14px; font-weight: 700; padding: 5px 12px; border-radius: 999px; background: #1F2708; color: #BEF264">peron {{pin.peron}}</span>
+<span style="font-size: 14px; font-weight: 500">tor {{pin.tor}}</span>
+</sc-if>
+<sc-if value="{{pin.noPeron}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 14px; font-weight: 500">{{pin.sub}}</span>
+</sc-if>
+<span style="font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: {{pin.pillBg}}; color: {{pin.pillFg}}">{{pin.pillText}}</span>
+</div>
+<sc-if value="{{pin.gdanska}}" hint-placeholder-val="{{ false }}">
+<span style="display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: #D8B4FE; color: #3B0764">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h12l-2 4 2 4H5"></path></svg>
+{{pin.flagText}}</span>
+</sc-if>
+</section>
+</sc-if>
+
+<section aria-label="Dziś" style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #BEF264">Dziś</h2>
+<span style="font-size: 14px; color: #D9F99D">{{todayLabel}}</span>
+</div>
+
+<sc-if value="{{hasArrived}}" hint-placeholder-val="{{ true }}">
+<button type="button" aria-expanded="{{arrivedExpanded}}" onClick="{{toggleArrived}}" style="width: 100%; min-height: 44px; border: 1px dashed #BEF264; border-radius: 14px; background: transparent; color: #D9F99D; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer">{{arrivedLabel}}</button>
+</sc-if>
+
+<sc-if value="{{showArrived}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{arrived}}" as="t" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #47530C; border-radius: 14px">
+<span style="flex-shrink: 0; display: flex; align-items: baseline; gap: 5px; color: #D9F99D"><span style="font-size: 17px; font-weight: 600">{{t.dep}}</span><span aria-hidden="true" style="font-size: 14px">→</span><span style="font-size: 15px; font-weight: 600">{{t.arrActual}}</span></span>
+<span style="flex: 1; min-width: 0; font-size: 14px; color: #D9F99D">{{t.train}}</span>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 999px; background: {{t.pillBg}}; color: {{t.pillFg}}">{{t.pillText}}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{hasEnroute}}" hint-placeholder-val="{{ true }}">
+<p style="margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #D9F99D">W drodze</p>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{enroute}}" as="t" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 14px; background: #A9C6D8; border-radius: 16px">
+<div style="display: flex; align-items: flex-start; gap: 12px">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 6px">
+<span style="font-size: 22px; font-weight: 700; line-height: 1.1; color: {{t.depColor}}">{{t.depShown}}</span>
+<span aria-hidden="true" style="font-size: 16px; color: #2B4252">→</span>
+<span style="font-size: 18px; font-weight: 600; line-height: 1.1; color: {{t.arrColor}}">{{t.arrActual}}</span>
+</div>
+<sc-if value="{{t.hasPlan}}" hint-placeholder-val="{{ false }}">
+<span style="display: block; font-size: 12px; color: #2B4252; text-decoration: line-through">{{t.planLine}}</span>
+</sc-if>
+<span style="font-size: 14px; font-weight: 700">{{t.train}} <span style="font-weight: 400; color: #2B4252">· ostatnio: {{t.last}}</span></span>
+<sc-if value="{{t.gdanska}}" hint-placeholder-val="{{ false }}">
+<span style="display: inline-flex; align-self: flex-start; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #D8B4FE; color: #3B0764">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h12l-2 4 2 4H5"></path></svg>
+{{t.flagText}}</span>
+</sc-if>
+</div>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 999px; background: {{t.pillBg}}; color: {{t.pillFg}}">{{t.pillText}}</span>
+</div>
+<div aria-hidden="true" style="height: 6px; border-radius: 3px; background: #C7DAE6; overflow: hidden">
+<div style="height: 6px; border-radius: 3px; background: #55630F; width: {{t.pct}}%"></div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; padding: 4px 0">
+<span style="flex-shrink: 0; background: #BEF264; color: #1F2708; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px">Teraz {{nowLabel}}</span>
+<span aria-hidden="true" style="flex: 1; height: 2px; background: #BEF264"></span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{upcoming}}" as="t" hint-placeholder-count="6">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 4px 12px 14px; background: #A9C6D8; border: {{t.border}}; border-radius: 16px">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="display: flex; align-items: baseline; gap: 6px">
+<span style="font-size: 22px; font-weight: 700; line-height: 1.1; color: {{t.depColor}}; text-decoration: {{t.depDeco}}">{{t.depActual}}</span>
+<span aria-hidden="true" style="font-size: 16px; color: #2B4252">→</span>
+<span style="font-size: 18px; font-weight: 600; line-height: 1.1; color: {{t.depColor}}; text-decoration: {{t.depDeco}}">{{t.arrAct}}</span>
+</div>
+<sc-if value="{{t.late}}" hint-placeholder-val="{{ false }}">
+<span style="display: block; font-size: 12px; color: #2B4252; text-decoration: line-through">plan {{t.dep}} → {{t.arr}}</span>
+</sc-if>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+<span style="font-size: 14px; font-weight: 700">{{t.train}}</span>
+<span style="flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: {{t.pillBg}}; color: {{t.pillFg}}">{{t.pillText}}</span>
+<span style="font-size: 13px; color: #2B4252">{{t.sub}}</span>
+</div>
+<sc-if value="{{t.gdanska}}" hint-placeholder-val="{{ false }}">
+<span style="display: inline-flex; align-self: flex-start; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #D8B4FE; color: #3B0764">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h12l-2 4 2 4H5"></path></svg>
+{{t.flagText}}</span>
+</sc-if>
+</div>
+<button type="button" aria-label="{{t.starLabel}}" aria-pressed="{{t.starPressed}}" onClick="{{t.toggleStar}}" style="width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 22px; background: transparent; color: {{t.starColor}}; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="{{t.starFill}}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path></svg>
+</button>
+</div>
+</sc-for>
+</div>
+</section>
+
+<section aria-label="Jutro" style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #BEF264">Jutro</h2>
+<span style="font-size: 14px; color: #D9F99D">{{tomorrowLabel}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{tomorrow}}" as="t" hint-placeholder-count="16">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: #A9C6D8; border-radius: 12px">
+<span style="font-size: 18px; font-weight: 700">{{t.dep}} <span style="font-size: 15px; font-weight: 500; color: #2B4252">→ {{t.arr}}</span></span>
+<span style="font-size: 12px; color: #2B4252">{{t.info}}</span>
+</div>
+</sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #D9F99D">Opóźnienia i perony pojawią się ok. 3 h przed odjazdem.</p>
+</section>
+
+<p style="margin: 0; font-size: 12px; color: #D9F99D; text-align: center">Źródło: PKP PLK</p>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scenario":{"editor":"enum","options":["rano","wieczor"],"default":"rano"},"startScrolled":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  toMin(s) {
+    var p = s.split(':');
+    return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
+  }
+  fmt(m) {
+    m = ((m % 1440) + 1440) % 1440;
+    var h = Math.floor(m / 60), mm = m % 60;
+    return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  span(a, b) {
+    var d = b - a;
+    return d < 0 ? d + 1440 : d;
+  }
+  inMin(n) {
+    if (n < 60) return 'za ' + n + ' min';
+    var h = Math.floor(n / 60), m = n % 60;
+    return 'za ' + h + ' h' + (m ? ' ' + m + ' min' : '');
+  }
+  roman(n) {
+    return String(n);
+  }
+  live(t) {
+    return !(t.delay === null || t.delay === undefined);
+  }
+  pill(t) {
+    if (t.cancelled) return { text: 'odwołany', bg: '#1F2708', fg: '#FFFFFF' };
+    if (!this.live(t)) return { text: 'rozkładowo', bg: '#E4E5E2', fg: '#3F4038' };
+    if (t.delay > 0) return { text: '+' + t.delay + ' min', bg: '#FFE4D2', fg: '#8A2E0F' };
+    return { text: 'planowo', bg: '#DCE9F1', fg: '#1F4A63' };
+  }
+  pinPill(t) {
+    if (!this.live(t)) return { text: 'rozkładowo', bg: '#A9C6D8', fg: '#1F2708' };
+    if (t.delay > 0) return { text: 'opóźniony +' + t.delay + ' min', bg: '#C2410C', fg: '#FFFFFF' };
+    return { text: 'planowo', bg: '#1F4A63', fg: '#FFFFFF' };
+  }
+  tomorrowData() {
+    return {
+      krk: [['05:20','07:38','EIP'],['06:15','08:58','IC'],['06:50','09:08','EIP'],['07:35','09:53','EIP'],['08:05','10:44','IC'],['08:35','10:53','EIP'],['09:05','11:47','IC'],['09:35','11:53','EIP'],['10:35','12:53','EIP'],['11:05','13:47','IC'],['12:35','14:53','EIP'],['14:35','16:53','EIP'],['15:35','17:53','EIP'],['16:05','18:44','IC'],['17:35','19:53','EIP'],['18:35','20:53','EIP']],
+      waw: [['05:00','07:18','EIP'],['06:00','08:18','EIP'],['06:40','09:22','IC'],['08:00','10:18','EIP'],['09:00','11:18','EIP'],['10:40','13:22','IC'],['12:00','14:18','EIP'],['13:50','16:08','EIP'],['15:00','17:18','EIP'],['15:50','18:08','EIP'],['16:40','19:25','IC'],['17:50','20:08','EIP'],['18:20','20:38','EIP'],['18:50','21:08','EIP'],['19:50','22:08','EIP'],['21:35','00:58','TLK']]
+    };
+  }
+  data() {
+    var soon = 'dane na żywo ok. 3 h przed odjazdem';
+    var none = 'dane na żywo jeszcze niedostępne';
+    return {
+      rano: {
+        now: '07:50', date: 'środa, 18 listopada', today: 'śr 18.11', tomorrow: 'czw 19.11 · rozkładowo',
+        refAgo: 3, schedDay: 'dziś',
+        autoDir: 'krk', pinDefault: 'k4',
+        krk: {
+          arrived: [
+            { id: 'k0', dep: '05:20', arr: '07:38', cat: 'EIP', no: '1300', delay: 3 }
+          ],
+          enroute: [
+            { id: 'k1', dep: '06:15', arr: '08:58', cat: 'IC', no: '3502', delay: 12, depDelay: 8, last: 'Włoszczowa Płn.' },
+            { id: 'k2', dep: '06:50', arr: '09:08', cat: 'EIP', no: '1302', delay: 0, depDelay: 0, last: 'Opoczno Płd.' },
+            { id: 'k3', dep: '07:35', arr: '09:53', cat: 'EIP', no: '1304', delay: 3, depDelay: 3, last: 'W-wa Zachodnia' }
+          ],
+          upcoming: [
+            { id: 'k4', dep: '08:05', arr: '10:44', cat: 'IC', no: '3504', delay: 5, peron: 4, tor: 2 },
+            { id: 'k5', dep: '08:35', arr: '10:53', cat: 'EIP', no: '1306', delay: 0, peron: 3, tor: 4 },
+            { id: 'k6', dep: '09:05', arr: '11:47', cat: 'IC', no: '3506', cancelled: true },
+            { id: 'k7', dep: '09:35', arr: '11:53', cat: 'EIP', no: '1308', delay: 0, peron: 2, tor: 3, wg: true },
+            { id: 'k8', dep: '10:35', arr: '12:53', cat: 'EIP', no: '1310', delay: null, note: soon },
+            { id: 'k9', dep: '11:05', arr: '13:47', cat: 'IC', no: '3508', delay: null, note: soon }
+          ]
+        },
+        waw: {
+          arrived: [
+            { id: 'w0', dep: '05:00', arr: '07:18', cat: 'EIP', no: '1301', delay: 0 }
+          ],
+          enroute: [
+            { id: 'w1', dep: '06:00', arr: '08:18', cat: 'EIP', no: '1303', delay: 4, depDelay: 2, last: 'Grodzisk Maz.' },
+            { id: 'w2', dep: '06:40', arr: '09:22', cat: 'IC', no: '3501', delay: 0, depDelay: 0, last: 'Włoszczowa Płn.' }
+          ],
+          upcoming: [
+            { id: 'w3', dep: '08:00', arr: '10:18', cat: 'EIP', no: '1305', delay: 0, peron: 4, tor: 8 },
+            { id: 'w4', dep: '09:00', arr: '11:18', cat: 'EIP', no: '1307', delay: 0, peron: 3, tor: 6 },
+            { id: 'w5', dep: '10:40', arr: '13:22', cat: 'IC', no: '3503', delay: null, note: none, wg: true },
+            { id: 'w6', dep: '12:00', arr: '14:18', cat: 'EIP', no: '1309', delay: null, note: soon },
+            { id: 'w7', dep: '13:50', arr: '16:08', cat: 'EIP', no: '1311', delay: null, note: soon }
+          ]
+        }
+      },
+      wieczor: {
+        now: '18:40', date: 'środa, 18 listopada', today: 'śr 18.11', tomorrow: 'czw 19.11 · rozkładowo',
+        refAgo: 72, schedDay: 'wczoraj',
+        autoDir: 'waw', pinDefault: null,
+        waw: {
+          arrived: [
+            { id: 'v0', dep: '15:00', arr: '17:18', cat: 'EIP', no: '1313', delay: 0 },
+            { id: 'v1', dep: '15:50', arr: '18:08', cat: 'EIP', no: '1315', delay: 7 }
+          ],
+          enroute: [
+            { id: 'v2', dep: '16:40', arr: '19:25', cat: 'IC', no: '3513', delay: 25, depDelay: 10, last: 'Opoczno Płd.' },
+            { id: 'v3', dep: '17:50', arr: '20:08', cat: 'EIP', no: '1317', delay: 6, depDelay: 4, last: 'Włoszczowa Płn.', wg: true },
+            { id: 'v4', dep: '18:20', arr: '20:38', cat: 'EIP', no: '1319', delay: 0, depDelay: 0, last: 'Miechów' }
+          ],
+          upcoming: [
+            { id: 'v5', dep: '18:50', arr: '21:08', cat: 'EIP', no: '1321', delay: 0, peron: 4, tor: 8 },
+            { id: 'v6', dep: '19:20', arr: '22:06', cat: 'IC', no: '3515', delay: 10, peron: 2, tor: 4 },
+            { id: 'v7', dep: '19:50', arr: '22:08', cat: 'EIP', no: '1323', delay: 0, peron: 3, tor: 6, wg: true },
+            { id: 'v8', dep: '20:50', arr: '23:08', cat: 'EIP', no: '1325', delay: 0 },
+            { id: 'v9', dep: '21:35', arr: '00:58', cat: 'TLK', no: '31101', delay: null, note: none }
+          ]
+        },
+        krk: {
+          arrived: [
+            { id: 'q0', dep: '15:35', arr: '17:53', cat: 'EIP', no: '1320', delay: 2 }
+          ],
+          enroute: [
+            { id: 'q1', dep: '16:05', arr: '18:44', cat: 'IC', no: '3520', delay: 3, depDelay: 0, last: 'Miechów' },
+            { id: 'q2', dep: '17:35', arr: '19:53', cat: 'EIP', no: '1322', delay: 0, depDelay: 0, last: 'Opoczno Płd.' },
+            { id: 'q3', dep: '18:35', arr: '20:53', cat: 'EIP', no: '1324', delay: 2, depDelay: 2, last: 'W-wa Zachodnia' }
+          ],
+          upcoming: [
+            { id: 'q4', dep: '19:05', arr: '21:47', cat: 'IC', no: '3522', delay: 0, peron: 2, tor: 3 },
+            { id: 'q5', dep: '19:35', arr: '21:53', cat: 'EIP', no: '1326', delay: 0, peron: 3, tor: 4 },
+            { id: 'q6', dep: '20:35', arr: '22:53', cat: 'EIP', no: '1328', delay: 0 },
+            { id: 'q7', dep: '21:05', arr: '23:47', cat: 'IC', no: '3524', delay: null, note: none }
+          ]
+        }
+      }
+    };
+  }
+  renderVals() {
+    var self = this;
+    var scenario = this.props.scenario === 'wieczor' ? 'wieczor' : 'rano';
+    var startScrolled = this.props.startScrolled === true || this.props.startScrolled === 'true';
+    var D = this.data()[scenario];
+    var st = this.state || {};
+    var mine = st.sc === scenario;
+    var manual = mine && !!st.manual;
+    var dir = manual ? st.dir : D.autoDir;
+    var starred = mine && ('starred' in st) ? st.starred : D.pinDefault;
+    var compact = mine && ('compact' in st) ? !!st.compact : startScrolled;
+    var eff = { manual: manual, dir: dir, starred: starred, compact: compact, showArrived: mine && !!st.showArrived, refreshed: mine && !!st.refreshed };
+    function set(patch) {
+      var n = { sc: scenario };
+      for (var k in eff) n[k] = eff[k];
+      for (var j in patch) n[j] = patch[j];
+      self.setState(n);
+    }
+    function pick(d) {
+      return function () { set({ dir: d, manual: d !== D.autoDir }); };
+    }
+
+    var now = this.toMin(D.now);
+    var L = D[dir];
+    var flagText = dir === 'krk' ? 'z W-wy Gdańskiej' : 'do W-wy Gdańskiej';
+
+    var arrived = L.arrived.map(function (t) {
+      var p = self.pill(t);
+      return { dep: t.dep, train: t.cat + ' ' + t.no, arrActual: self.fmt(self.toMin(t.arr) + (t.delay || 0)), pillText: p.text, pillBg: p.bg, pillFg: p.fg };
+    });
+
+    var enroute = L.enroute.map(function (t) {
+      var p = self.pill(t);
+      var depA = self.toMin(t.dep) + (t.depDelay || 0);
+      var arrA = self.toMin(t.arr) + (t.delay || 0);
+      var pct = Math.max(3, Math.min(97, Math.round(self.span(depA, now) / self.span(depA, arrA) * 100)));
+      return {
+        dep: t.dep, depShown: self.fmt(depA), depColor: (t.depDelay || 0) > 0 ? '#8A2E0F' : '#0F2533',
+        hasPlan: (t.depDelay || 0) > 0 || t.delay > 0, planLine: 'plan ' + t.dep + ' → ' + t.arr,
+        train: t.cat + ' ' + t.no, last: t.last,
+        arr: t.arr, arrActual: self.fmt(arrA), late: t.delay > 0, arrColor: t.delay > 0 ? '#8A2E0F' : '#0F2533',
+        pct: pct, pillText: p.text, pillBg: p.bg, pillFg: p.fg,
+        gdanska: !!t.wg, flagText: flagText
+      };
+    });
+
+    var upcoming = L.upcoming.map(function (t) {
+      var p = self.pill(t);
+      var live = self.live(t);
+      var late = !t.cancelled && live && t.delay > 0;
+      var isStar = starred === t.id;
+      var sub = t.cancelled ? 'sprawdź komunikat przewoźnika' : (live ? (t.peron ? 'peron ' + self.roman(t.peron) + ' · tor ' + t.tor : 'peron jeszcze nieznany') : t.note);
+      return {
+        dep: t.dep, depActual: self.fmt(self.toMin(t.dep) + (late ? t.delay : 0)), late: late, notLate: !late,
+        arrAct: self.fmt(self.toMin(t.arr) + (late ? t.delay : 0)),
+        depColor: t.cancelled ? '#2B4252' : (late ? '#8A2E0F' : '#0F2533'), depDeco: t.cancelled ? 'line-through' : 'none',
+        train: t.cat + ' ' + t.no,
+        arrShown: late ? 'ok. ' + self.fmt(self.toMin(t.arr) + t.delay) : t.arr,
+        sub: sub, pillText: p.text, pillBg: p.bg, pillFg: p.fg,
+        gdanska: !!t.wg, flagText: flagText,
+        border: isStar ? '2px solid #BEF264' : '2px solid #A9C6D8',
+        starLabel: (isStar ? 'Odepnij ' : 'Przypnij ') + t.cat + ' ' + t.no,
+        starPressed: isStar ? 'true' : 'false',
+        starFill: isStar ? '#55630F' : 'none',
+        starColor: isStar ? '#55630F' : '#2B4252',
+        toggleStar: function () { set({ starred: isStar ? null : t.id }); }
+      };
+    });
+
+    var pin = {};
+    var hasPin = false;
+    L.upcoming.forEach(function (t) {
+      if (t.id !== starred || t.cancelled) return;
+      var d = t.delay || 0;
+      var depA = self.toMin(t.dep) + d;
+      var pp = self.pinPill(t);
+      hasPin = true;
+      pin = {
+        train: t.cat + ' ' + t.no, depT: self.fmt(depA), arrT: self.fmt(self.toMin(t.arr) + d),
+        hasPlan: d > 0, planLine: 'plan ' + t.dep + ' → ' + t.arr,
+        countdown: 'odjazd ' + self.inMin(self.span(now, depA)),
+        hasPeron: !!t.peron, noPeron: !t.peron, peron: t.peron ? self.roman(t.peron) : '', tor: t.tor || '',
+        sub: 'peron jeszcze nieznany',
+        pillText: pp.text, pillBg: pp.bg, pillFg: pp.fg,
+        gdanska: !!t.wg, flagText: flagText,
+        arrLine: 'przyjazd do celu ' + (d > 0 ? 'ok. ' : '') + self.fmt(self.toMin(t.arr) + d)
+      };
+    });
+    L.enroute.forEach(function (t) {
+      if (t.id !== starred) return;
+      var d = t.delay || 0;
+      var depA = self.toMin(t.dep) + (t.depDelay || 0);
+      var arrA = self.toMin(t.arr) + d;
+      var pp = self.pinPill(t);
+      hasPin = true;
+      pin = {
+        train: t.cat + ' ' + t.no, depT: self.fmt(depA), arrT: self.fmt(arrA),
+        hasPlan: d > 0 || (t.depDelay || 0) > 0, planLine: 'plan ' + t.dep + ' → ' + t.arr,
+        countdown: 'przyjazd ' + self.inMin(self.span(now, arrA)),
+        hasPeron: false, noPeron: true, peron: '', tor: '', sub: 'ostatnio: ' + t.last,
+        pillText: pp.text, pillBg: pp.bg, pillFg: pp.fg,
+        gdanska: !!t.wg, flagText: flagText,
+        arrLine: 'odjechał ' + self.fmt(depA)
+      };
+    });
+
+    var tomorrow = this.tomorrowData()[dir].map(function (r) {
+      var dur = self.span(self.toMin(r[0]), self.toMin(r[1]));
+      var m = dur % 60;
+      return { dep: r[0], arr: r[1], info: r[2] + ' · ' + Math.floor(dur / 60) + ' h' + (m ? ' ' + m + ' min' : '') };
+    });
+
+    var ago = eff.refreshed ? 0 : D.refAgo;
+    var refText = ago < 1 ? 'odśw. przed chwilą' : ago < 60 ? 'odśw. ' + ago + ' min temu' : 'odśw. ' + Math.floor(ago / 60) + ' h ' + (ago % 60) + ' min temu';
+    var refStale = ago >= 60;
+    var schStale = D.schedDay !== 'dziś';
+    var onKrk = dir === 'krk';
+
+    return {
+      dateLabel: D.date,
+      todayLabel: D.today,
+      tomorrowLabel: D.tomorrow,
+      nowLabel: D.now,
+      refText: refText,
+      refPad: refStale ? '2px 6px' : '0', refBg: refStale ? '#DC2626' : 'transparent', refFg: refStale ? '#FFFFFF' : '#D9F99D',
+      schText: 'rozkład z ' + D.schedDay,
+      schPad: schStale ? '2px 6px' : '0', schBg: schStale ? '#DC2626' : 'transparent', schFg: schStale ? '#FFFFFF' : '#D9F99D',
+      expanded: !compact,
+      compact: compact,
+      dirLabel: onKrk ? 'Do Krakowa' : 'Do Warszawy',
+      dirShort: onKrk ? 'Do KRK' : 'Do WAW',
+      swapDir: function () { var d = onKrk ? 'waw' : 'krk'; set({ dir: d, manual: d !== D.autoDir }); },
+      scrollRef: function (el) {
+        if (el && startScrolled && !self._scrolled) {
+          self._scrolled = true;
+          setTimeout(function () { el.scrollTop = 520; }, 60);
+        }
+      },
+      onScroll: function (e) {
+        var c = e.currentTarget.scrollTop > 60;
+        if (c !== compact) set({ compact: c });
+      },
+      manual: manual,
+      krkPressed: onKrk ? 'true' : 'false',
+      wawPressed: onKrk ? 'false' : 'true',
+      krkBg: onKrk ? '#BEF264' : 'transparent', krkFg: onKrk ? '#1F2708' : '#BEF264', krkSub: onKrk ? '#3F4A12' : '#D9F99D',
+      wawBg: onKrk ? 'transparent' : '#BEF264', wawFg: onKrk ? '#BEF264' : '#1F2708', wawSub: onKrk ? '#D9F99D' : '#3F4A12',
+      pickKrk: pick('krk'),
+      pickWaw: pick('waw'),
+      refresh: function () { set({ refreshed: true }); },
+      hasPin: hasPin,
+      pin: pin,
+      hasArrived: arrived.length > 0,
+      showArrived: eff.showArrived,
+      arrivedExpanded: eff.showArrived ? 'true' : 'false',
+      arrivedLabel: eff.showArrived ? 'Ukryj pociągi, które już dojechały' : 'Pokaż pociągi, które już dojechały (' + arrived.length + ')',
+      toggleArrived: function () { set({ showArrived: !eff.showArrived }); },
+      arrived: arrived,
+      hasEnroute: enroute.length > 0,
+      enroute: enroute,
+      upcoming: upcoming,
+      tomorrow: tomorrow
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "_": "Ręczna próbka w formacie /api/v1/operations/train (pola jak w TrainRun.kt z karoo-kolejka i Swagger v1.3.2)",
+  "scheduleId": 2026,
+  "orderId": 607309466,
+  "trainOrderId": 607309466,
+  "operatingDate": "2026-11-21",
+  "trainStatus": "P",
+  "stations": [
+    {"stationId": 33605, "plannedSequenceNumber": 1, "plannedDeparture": "2026-11-21T08:05:00", "actualDeparture": "2026-11-21T08:10:00", "departureDelayMinutes": 5, "isConfirmed": true, "isCancelled": false},
+    {"stationId": 33506, "plannedSequenceNumber": 2, "plannedArrival": "2026-11-21T08:12:00", "actualArrival": "2026-11-21T08:17:00", "actualDeparture": "2026-11-21T08:19:00", "isConfirmed": true, "isCancelled": false},
+    {"stationId": 62000, "plannedSequenceNumber": 3, "actualArrival": "2026-11-21T09:50:00", "actualDeparture": "2026-11-21T09:51:00", "isConfirmed": false, "isCancelled": false},
+    {"stationId": 80416, "plannedSequenceNumber": 4, "plannedArrival": "2026-11-21T10:44:00", "actualArrival": "2026-11-21T10:49:00", "arrivalDelayMinutes": 5, "isConfirmed": false, "isCancelled": false}
+  ]
+}

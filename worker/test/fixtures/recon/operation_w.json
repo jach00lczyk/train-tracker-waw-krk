@@ -1,0 +1,99 @@
+{
+ "scheduleId": 2026,
+ "orderId": 905425099,
+ "trainOrderId": 757863914,
+ "operatingDate": "2026-11-21",
+ "trainStatus": "P",
+ "stations": [
+  {
+   "stationId": 80416,
+   "plannedSequenceNumber": 1,
+   "actualSequenceNumber": 1,
+   "actualDeparture": "2026-11-21T13:43:00",
+   "isConfirmed": true
+  },
+  {
+   "stationId": 33506,
+   "plannedSequenceNumber": 32,
+   "actualSequenceNumber": 32,
+   "actualArrival": "2026-11-21T16:14:30",
+   "actualDeparture": "2026-11-21T16:15:30"
+  },
+  {
+   "stationId": 33605,
+   "plannedSequenceNumber": 34,
+   "actualSequenceNumber": 34,
+   "actualArrival": "2026-11-21T16:20:00",
+   "actualDeparture": "2026-11-21T16:29:00"
+  },
+  {
+   "stationId": 38653,
+   "plannedSequenceNumber": 35,
+   "actualSequenceNumber": 35,
+   "actualArrival": "2026-11-21T16:35:00",
+   "actualDeparture": "2026-11-21T16:36:00"
+  },
+  {
+   "stationId": 7500,
+   "plannedSequenceNumber": 78,
+   "actualSequenceNumber": 78,
+   "actualArrival": "2026-11-21T18:53:30",
+   "actualDeparture": "2026-11-21T18:55:00"
+  },
+  {
+   "stationId": 7534,
+   "plannedSequenceNumber": 79,
+   "actualSequenceNumber": 79,
+   "actualArrival": "2026-11-21T18:59:30",
+   "actualDeparture": "2026-11-21T19:00:30"
+  },
+  {
+   "stationId": 7583,
+   "plannedSequenceNumber": 81,
+   "actualSequenceNumber": 81,
+   "actualArrival": "2026-11-21T19:04:30",
+   "actualDeparture": "2026-11-21T19:05:30"
+  },
+  {
+   "stationId": 5942,
+   "plannedSequenceNumber": 83,
+   "actualSequenceNumber": 83,
+   "actualArrival": "2026-11-21T19:09:30",
+   "actualDeparture": "2026-11-21T19:10:30"
+  },
+  {
+   "stationId": 5900,
+   "plannedSequenceNumber": 85,
+   "actualSequenceNumber": 85,
+   "actualArrival": "2026-11-21T19:19:00",
+   "actualDeparture": "2026-11-21T19:23:00"
+  },
+  {
+   "stationId": 5256,
+   "plannedSequenceNumber": 96,
+   "actualSequenceNumber": 96,
+   "actualArrival": "2026-11-21T20:00:00",
+   "actualDeparture": "2026-11-21T20:01:00"
+  },
+  {
+   "stationId": 4705,
+   "plannedSequenceNumber": 101,
+   "actualSequenceNumber": 101,
+   "actualArrival": "2026-11-21T20:47:00",
+   "actualDeparture": "2026-11-21T20:48:00"
+  },
+  {
+   "stationId": 4408,
+   "plannedSequenceNumber": 110,
+   "actualSequenceNumber": 110,
+   "actualArrival": "2026-11-21T21:36:00",
+   "actualDeparture": "2026-11-21T21:37:00"
+  },
+  {
+   "stationId": 4101,
+   "plannedSequenceNumber": 113,
+   "actualSequenceNumber": 113,
+   "actualArrival": "2026-11-21T22:10:00"
+  }
+ ]
+}
