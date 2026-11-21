@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Wdrożenie (21.11.2026)
+- Strona: https://jach00lczyk.github.io/train-tracker-waw-krk/ (GitHub Pages z gałęzi `gh-pages`).
+- Worker: https://train-tracker-waw-krk.jach00lczyk.workers.dev — `LIVE_URL` w `web/config.js`.
+  Sprawdzone na żywo: kurs w drodze → `state: ok`, status `P`; bez nagłówka Origin → 403.
+- `preview_urls = false` w `wrangler.toml` (działa od następnego `wrangler deploy`).
+
 ### CI: Node 22 (21.11.2026)
 - `node --test <katalog>` działa dopiero od Node 23 — w Actions (Node 22) testy strony padały
   „Cannot find module …/web/test”. Komendy wszędzie zmienione na `node --test <katalog>/*.test.js`.

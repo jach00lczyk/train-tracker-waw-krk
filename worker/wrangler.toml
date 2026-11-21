@@ -2,6 +2,8 @@ name = "train-tracker-waw-krk"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
+# Bez dodatkowych adresów podglądu wersji — jedno publiczne wejście.
+preview_urls = false
 
 [vars]
 # Adres strony (GitHub Pages). Lokalnie można dopisać po przecinku http://localhost:8000 w .dev.vars.
