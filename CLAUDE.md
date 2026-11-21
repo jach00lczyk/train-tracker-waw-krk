@@ -23,9 +23,9 @@ uv run --python 3.12 --with-requirements requirements.txt pytest
 uv run --python 3.12 python build_trains.py --out ../dist/data
 
 # strona
-node --test web/test
+node --test web/test/*.test.js
 python3 -m http.server -d web 8000     # http://localhost:8000/?demo=rano
 
 # worker
-cd worker && node --test test && npx wrangler dev
+cd worker && node --test test/*.test.js && npx wrangler dev
 ```

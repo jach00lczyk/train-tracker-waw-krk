@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### CI: Node 22 (21.11.2026)
+- `node --test <katalog>` działa dopiero od Node 23 — w Actions (Node 22) testy strony padały
+  „Cannot find module …/web/test”. Komendy wszędzie zmienione na `node --test <katalog>/*.test.js`.
+
 ### Leo Express (21.11.2026)
 - Decyzja właściciela (SPEC 15.3): pociągi Leo Express WAW ↔ KRK są pokazywane (ok. 4 dziennie w każdym
   kierunku). `CARRIERS = ["IC", "Leo Express"]`, filtr sprawdzony na żywo (1 zapytanie). Etykieta

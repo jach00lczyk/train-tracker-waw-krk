@@ -61,7 +61,7 @@ uv run --python 3.12 --with-requirements requirements.txt pytest
 uv run --python 3.12 python build_trains.py --schedules tests/fixtures/pdp_schedules.json --today 2026-10-24 --min-trains 1 --out ../web/data
 
 # strona (tryb demo nie wysyła zapytań)
-node --test web/test
+node --test web/test/*.test.js
 python3 -m http.server -d web 8000
 # http://localhost:8000/?demo=rano
 # http://localhost:8000/?demo=wieczor
@@ -69,7 +69,7 @@ python3 -m http.server -d web 8000
 # ?now=09:30 nadpisuje zegar demo; node web/demo/generate.mjs odtwarza fixtures
 
 # worker
-cd worker && node --test test
+cd worker && node --test test/*.test.js
 cp .dev.vars.example .dev.vars   # wpisz klucz; plik jest w .gitignore
 npx wrangler dev
 ```

@@ -516,7 +516,7 @@ sprawdź workflow"), `DataStale` (czerwone „rozkład z wczoraj", lista działa
 - Wyzwalacze: `schedule: "30 1 * * *"` (≈ 02:30–03:30 w Warszawie) i `"30 5 * * *"` (zapas, gdyby
   pierwszy padł), `push` na `main` (`pipeline/**`, `web/**`, workflow), `workflow_dispatch`.
 - `concurrency: gh-pages`, `permissions: contents: write`.
-- Kroki: checkout → Python 3.12 → `pytest` → Node 22 → `node --test web/test` →
+- Kroki: checkout → Python 3.12 → `pytest` → Node 22 → `node --test web/test/*.test.js` →
   pobranie poprzedniego `data/trains.json` z `gh-pages` → `build_trains.py --out dist/data`
   (z `PDP_API_KEY` z sekretu) → **gdy budowa się nie uda: przy `push` użyj poprzedniego
   `trains.json` (żeby wdrożenie kodu strony działało), przy `schedule` zakończ bez publikacji** →
@@ -524,7 +524,7 @@ sprawdź workflow"), `DataStale` (czerwone „rozkład z wczoraj", lista działa
 
 ### 10.2 `ci.yml`
 
-PR i push: `pytest`, `node --test web/test`, `node --test worker/test`. Bez sekretów.
+PR i push: `pytest`, `node --test web/test/*.test.js`, `node --test worker/test/*.test.js`. Bez sekretów.
 
 ---
 

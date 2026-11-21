@@ -40,7 +40,7 @@ jobs:
           node-version: "22"
 
       - name: Testy strony
-        run: node --test web/test
+        run: node --test web/test/*.test.js
 
       - name: Poprzednia publikacja
         run: |
