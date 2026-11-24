@@ -71,7 +71,8 @@ const state = {
   liveAt: NaN,
   lastAttempt: 0,
   refreshing: false,
-  showArrived: false,
+  showEarlier: false, // rozwinięty wiersz „Wcześniejsze" (dojechały, odwołane, w drodze)
+  earlierSum: null,
   open: new Set(), // klucze kafelków rozwiniętych do listy stacji
   compact: false,
   demo: null,
@@ -85,16 +86,24 @@ function currentDir() {
   return L.effectiveDir(store.get('dir'), now());
 }
 
-// --------------------------------------------------------------------------- przypięty pociąg (SPEC 5.5)
-// Jeden wspólny dla wszystkich urządzeń: zapis PUT /pin w Workerze, odczyt w odpowiedzi /live.
-// Lokalnie {key, at, pending}; `pending` = zmiana jeszcze niezapisana w Workerze (ponowienie przy odświeżeniu).
+// --------------------------------------------------------------------------- przypięte pociągi (SPEC 5.5)
+// Osobno dla każdego kierunku, wspólne dla wszystkich urządzeń: zapis PUT /pin w Workerze, odczyt w odpowiedzi /live.
+// Lokalnie {krk: {key, at, pending}, waw: …}; `pending` = zmiana jeszcze niezapisana w Workerze (ponowienie przy odświeżeniu).
 
-function getPin() {
-  const v = store.get('pin');
-  if (typeof v === 'string') return { key: v, at: null, pending: false }; // stary format / demo
-  if (v && typeof v === 'object') return { key: v.key ?? null, at: v.at ?? null, pending: !!v.pending };
-  return { key: null, at: null, pending: false };
+const DIR_NAME = { krk: 'Do Krakowa', waw: 'Do Warszawy' };
+
+/** Stary zapis jednego pociągu (`pin`) jest czytany tylko do pierwszego zapisu w nowym formacie. */
+function getPins() {
+  return L.loadPins(store.get('pins'), store.get('pin'), state.schedule);
 }
+
+function savePins(pins) {
+  store.set('pins', pins);
+  store.del('pin');
+}
+
+const pinKeys = () => L.PIN_DIRS.map((d) => getPins()[d].key).filter(Boolean);
+const currentPinned = () => L.pinnedStates(getPins(), state.schedule, state.live, now());
 
 const liveBase = () => LIVE_URL.replace(/\/$/, '');
 
@@ -104,35 +113,37 @@ function timeoutOpts(extra = {}) {
   return opts;
 }
 
-function setPin(key) {
-  store.set('pin', { key, at: null, pending: !state.demo && !!LIVE_URL });
-  render();
-  pushPin();
+function setPin(dir, key) {
+  const pins = getPins();
+  pins[dir] = { key, at: null, pending: !state.demo && !!LIVE_URL };
+  savePins(pins);
+  pushPins();
 }
 
-async function pushPin() {
-  const p = getPin();
-  if (!p.pending || !LIVE_URL || state.demo) return;
-  try {
-    const r = await fetch(`${liveBase()}/pin`, timeoutOpts({
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: p.key }),
-    }));
-    if (!r.ok) throw new Error(String(r.status));
-    const body = await r.json();
-    // w międzyczasie mogło być kolejne stuknięcie — wtedy ono wygrywa
-    if (getPin().key === p.key) store.set('pin', { key: body?.pin?.key ?? null, at: body?.pin?.at ?? null, pending: false });
-  } catch {
-    flash('Nie udało się zapisać przypięcia — spróbuję przy odświeżeniu');
+async function pushPins() {
+  if (!LIVE_URL || state.demo) return;
+  for (const dir of L.PIN_DIRS) {
+    const p = getPins()[dir];
+    if (!p.pending) continue;
+    try {
+      const r = await fetch(`${liveBase()}/pin`, timeoutOpts({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir, key: p.key }),
+      }));
+      if (!r.ok) throw new Error(String(r.status));
+      const body = await r.json();
+      // w międzyczasie mogło być kolejne stuknięcie — wtedy ono wygrywa
+      const pins = getPins();
+      if (pins[dir].key === p.key) {
+        pins[dir] = { key: body?.pin?.key ?? null, at: body?.pin?.at ?? null, pending: false };
+        savePins(pins);
+      }
+    } catch {
+      flash('Nie udało się zapisać przypięcia — spróbuję przy odświeżeniu');
+      return;
+    }
   }
-}
-
-/** Przypięty pociąg z odpowiedzi /live — chyba że mamy własną, jeszcze niezapisaną zmianę. */
-function adoptServerPin(body) {
-  if (!body || !('pin' in body) || getPin().pending) return;
-  const sp = body.pin;
-  store.set('pin', { key: sp?.key ?? null, at: sp?.at ?? null, pending: false });
 }
 
 function setDir(dir) {
@@ -150,7 +161,11 @@ const t = (ms) => L.fmtTime(ms);
 const ICON_REFRESH = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"></path><path d="M20 4v5h-5"></path></svg>';
 const ICON_SWAP = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4L3 8l4 4"></path><path d="M3 8h14"></path><path d="M17 20l4-4-4-4"></path><path d="M21 16H7"></path></svg>';
 const ICON_FLAG = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h12l-2 4 2 4H5"></path></svg>`;
-const ICON_STAR = (fill) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"></path></svg>`;
+// Pinezka: wypełnienie główki w CSS (.hd), żeby zmiana przypięcia była płynna.
+const ICON_PIN = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"></path><path class="hd" d="M5 17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2z"></path></svg>';
+const ICON_CHEV = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>';
+const ICON_CHECK = '<span class="st-ico" role="img" aria-label="dojechał"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>';
+const ICON_X = '<span class="st-ico" role="img" aria-label="odwołany"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"></path></svg></span>';
 
 function ages() {
   const n = now();
@@ -245,15 +260,16 @@ function planHtml(st) {
   return `<span class="plan num">plan ${t(st.planDep)} → ${t(st.planArr)}</span>`;
 }
 
-function starHtml(st, pinKey) {
-  if (!L.canPin(st)) return '<span class="star" aria-hidden="true"></span>';
+const pinLabel = (on, train) => `${on ? 'Odepnij' : 'Przypnij'} ${L.trainLabel(train)}`;
+
+function pinBtn(st, pinKey) {
+  if (!L.canPin(st)) return '<span class="pinbtn" aria-hidden="true"></span>';
   const on = st.key === pinKey;
-  const label = `${on ? 'Odepnij' : 'Przypnij'} ${L.trainLabel(st.train)}`;
-  return `<button type="button" class="star" data-action="pin" data-key="${esc(st.key)}" data-fid="pin-${esc(st.key)}"
-    aria-pressed="${on}" aria-label="${esc(label)}">${ICON_STAR(on ? 'currentColor' : 'none')}</button>`;
+  return `<button type="button" class="pinbtn" data-action="pin" data-key="${esc(st.key)}" data-pdir="${esc(st.train.dir)}"
+    data-fid="pin-${esc(st.key)}" aria-pressed="${on}" aria-label="${esc(pinLabel(on, st.train))}">${ICON_PIN}</button>`;
 }
 
-/** Przezroczysty przycisk na całym kafelku: stuknięcie rozwija/zwija listę stacji (gwiazdka leży nad nim). */
+/** Przezroczysty przycisk na całym kafelku: stuknięcie rozwija/zwija listę stacji (pinezka leży nad nim). */
 function openHtml(train, id = train.key) {
   if (!Array.isArray(train.stops) || train.stops.length < 2) return '';
   const on = state.open.has(id);
@@ -279,15 +295,10 @@ function stopsHtml(train, id = train.key) {
     .join('')}</ol>`;
 }
 
-function pinTile(st) {
+/** Duża forma przypiętego (kierunek wybrany): godziny + numer, plan + odliczanie, peron/ostatnio + pastylka. */
+function pinBig(st) {
   const n = now();
-  const p = L.pinPill(st);
-  let count;
-  if (st.cancelled) count = 'pociąg odwołany';
-  else if (st.status === 'upcoming') count = `odjazd ${L.countdown(st.expDep, n)}`;
-  else if (st.status === 'enroute') count = `przyjazd ${L.countdown(st.expArr, n)}`;
-  else count = `dojechał o ${t(st.expArr)}`;
-
+  const id = `pin:${st.key}`;
   let chips = '';
   if (st.cancelled) chips = '<span class="txt">sprawdź komunikat przewoźnika</span>';
   else if (st.status === 'upcoming') {
@@ -299,50 +310,161 @@ function pinTile(st) {
     chips = `<span class="txt">ostatnio: ${esc(L.shortStation(st.lastStation))}</span>`;
   }
   const late = !st.cancelled && (st.depDelay >= 1 || st.arrDelay >= 1);
-  return `<section class="pin" aria-label="Przypięty pociąg">
-    ${openHtml(st.train, `pin:${st.key}`)}
-    <div class="head"><span class="k">Twój pociąg</span><span class="n">${esc(L.trainLabel(st.train))}</span></div>
-    <div class="tt">
-      ${timesHtml(st, {})}
-      ${late ? `<span class="plan num">plan ${t(st.planDep)} → ${t(st.planArr)}</span>` : ''}
-      <span class="count">${esc(count)}</span>
-    </div>
-    <div class="chips">${chips}${pillHtml(p)}</div>
-    ${flagHtml(st.train, 13)}
-    ${stopsHtml(st.train, `pin:${st.key}`)}
+  const pct = Math.round((st.progress ?? 0.5) * 100);
+  return `<section class="pin" aria-label="Przypięty pociąg ${esc(DIR_NAME[st.train.dir].toLowerCase())}: ${esc(L.trainLabel(st.train))}">
+    ${openHtml(st.train, id)}
+    <div class="r">${timesHtml(st, {})}<span class="n">${esc(L.trainLabel(st.train))}</span></div>
+    <div class="r r2">${late ? `<span class="plan num">plan ${t(st.planDep)} → ${t(st.planArr)}</span>` : ''}<span class="count">${esc(L.pinCountdown(st, n))}</span></div>
+    <div class="chips">${chips}${pillHtml(L.pinPill(st))}${flagHtml(st.train, 12)}</div>
+    ${st.status === 'enroute' ? `<div class="pbar" aria-hidden="true"><i style="width:${pct}%"></i></div>` : ''}
+    ${stopsHtml(st.train, id)}
   </section>`;
 }
 
-function arrivedRow(st) {
-  return `<div class="done">
-    <span class="t num"><span class="dep">${t(st.expDep)}</span><span class="arrow" aria-hidden="true">→</span><span class="arr">${t(st.cancelled ? st.planArr : st.expArr)}</span></span>
-    <span class="name">${esc(L.trainLabel(st.train))}</span>
+/** Mała forma (drugi kierunek): stuknięcie przełącza kierunek. */
+function pinSmall(st, dir) {
+  const label = L.trainLabel(st.train);
+  return `<button type="button" class="pin2" data-action="dir" data-dir="${dir}" data-fid="goto-${dir}"
+    aria-label="${esc(`Przełącz na kierunek ${DIR_NAME[dir]}: przypięty ${label}, ${t(st.expDep)} do ${t(st.expArr)}`)}">
+    <span class="grow"><span class="k">${DIR_NAME[dir]}</span><span>${esc(label)} · ${esc(L.pinCountdown(st, now()))}</span></span>
+    <span class="t num">${t(st.expDep)} → ${t(st.expArr)}</span>
+  </button>`;
+}
+
+const pinsHtmlCache = new WeakMap();
+function setHtml(el, html) {
+  if (pinsHtmlCache.get(el) === html) return;
+  el.innerHTML = html;
+  pinsHtmlCache.set(el, html);
+}
+
+/**
+ * Kontener przypiętych aktualizowany w miejscu (stałe węzły, KRK u góry, WAW na dole), żeby przejścia CSS
+ * mogły się odegrać: wybrany kierunek `big`, drugi `small`, nieprzypięty `none` (wysokość → 0, treść zostaje
+ * na czas zwijania).
+ */
+function renderPins(pinned) {
+  const wrap = document.getElementById('pins-wrap');
+  if (!wrap) return;
+  const dir = currentDir();
+  let any = false;
+  for (const d of L.PIN_DIRS) {
+    const el = document.getElementById(`pi-${d}`);
+    const st = pinned?.[d] ?? null;
+    const mode = !st ? 'none' : d === dir ? 'big' : 'small';
+    el.classList.remove('none', 'big', 'small');
+    el.classList.add(mode);
+    const [fs, fb] = el.querySelectorAll('.f > div');
+    if (st) {
+      any = true;
+      setHtml(fs, pinSmall(st, d));
+      setHtml(fb, pinBig(st));
+    }
+    fs.parentElement.inert = mode !== 'small';
+    fb.parentElement.inert = mode !== 'big';
+  }
+  wrap.classList.toggle('empty', !any);
+  wrap.inert = !any;
+}
+
+/** Pinezki i obwódki na liście zmieniane w miejscu — bez przerysowania, więc przejścia CSS się odgrywają. */
+function syncListPins() {
+  const pins = getPins();
+  for (const b of main.querySelectorAll('[data-action="pin"]')) {
+    const on = pins[b.dataset.pdir]?.key === b.dataset.key;
+    const train = state.schedule?.trains?.find((x) => x.key === b.dataset.key);
+    b.setAttribute('aria-pressed', on);
+    if (train) b.setAttribute('aria-label', pinLabel(on, train));
+    b.closest('[data-card]')?.classList.toggle('pinned', on);
+  }
+}
+
+/**
+ * Trzyma element w tym samym miejscu ekranu, gdy kontener przypiętych nad nim rośnie lub maleje
+ * (kafelek nie odjeżdża spod palca). Tylko na czas przejścia CSS (SPEC 6), bez sieci: działa co najmniej `ms`,
+ * potem do ustabilizowania pozycji (3 klatki bez korekty), najdłużej 2 s. Palec lub kółko przerywa.
+ */
+function keepInPlace(el, ms = 600) {
+  const sc = document.scrollingElement || document.documentElement;
+  const y0 = el.getBoundingClientRect().top;
+  const t0 = performance.now();
+  let stopped = false;
+  let still = 0;
+  const stop = () => (stopped = true);
+  addEventListener('touchstart', stop, { once: true, passive: true });
+  addEventListener('wheel', stop, { once: true, passive: true });
+  const step = () => {
+    if (stopped || !el.isConnected) return; // lista przerysowana w trakcie — nie ma już czego trzymać
+    const d = el.getBoundingClientRect().top - y0;
+    if (Math.abs(d) >= 0.5) {
+      sc.scrollTop += d;
+      still = 0;
+    } else still++;
+    const t = performance.now() - t0;
+    if (t < 2000 && (t < ms || still < 3)) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function pastRow(st) {
+  const cx = st.cancelled;
+  return `<div class="row2 past${cx ? ' cx' : ''}">
+    <span class="t num">${t(cx ? st.planDep : st.expDep)} → ${t(cx ? st.planArr : st.expArr)}</span>
+    <span class="nm"><span>${esc(L.trainLabel(st.train))}</span></span>
     ${pillHtml(L.statusPill(st))}
+    ${cx ? ICON_X : ICON_CHECK}
   </div>`;
 }
 
-function enrouteCard(st, pinKey) {
-  const last = st.lastStation ? ` <span class="last">· ostatnio: ${esc(L.shortStation(st.lastStation))}</span>` : '';
+function goRow(st, pinKey) {
   const pct = Math.round((st.progress ?? 0.5) * 100);
-  return `<article class="card go${st.key === pinKey ? ' pinned' : ''}">
+  const last = st.lastStation ? `<span class="last">ostatnio: ${esc(L.shortStation(st.lastStation))}</span>` : '';
+  return `<div class="row2 go${st.key === pinKey ? ' pinned' : ''}" data-card="${esc(st.key)}">
     ${openHtml(st.train)}
-    <div class="top">
-      <div class="body">
-        ${timesHtml(st, { depLate: st.depDelay >= 1, arrLate: st.arrDelay >= 1 })}
-        ${planHtml(st)}
-        <span class="tl">${esc(L.trainLabel(st.train))}${last}</span>
-        ${flagHtml(st.train)}
-      </div>
-      <div class="side">${pillHtml(L.statusPill(st))}${starHtml(st, pinKey)}</div>
-    </div>
-    <div class="bar" aria-hidden="true"><div style="width:${pct}%"></div></div>
+    <span class="t num">${t(st.expDep)} → ${t(st.expArr)}</span>
+    <span class="nm"><span>${esc(L.trainLabel(st.train))}</span></span>
+    ${pillHtml(L.statusPill(st))}
+    ${pinBtn(st, pinKey)}
+    ${last}
     ${stopsHtml(st.train)}
-  </article>`;
+    <span class="mb" aria-hidden="true"><i style="width:${pct}%"></i></span>
+  </div>`;
+}
+
+function earlierText(sum, open) {
+  if (open) return '<b>Ukryj wcześniejsze pociągi</b>';
+  return `<b>${esc(sum.text)}</b>${sum.next ? `<span class="num">${esc(sum.next)}</span>` : ''}`;
+}
+
+/** Wiersze są zawsze w DOM; rozwijanie to tylko klasa `is-open` (płynne przejście w CSS), ukryta część jest `inert`. */
+function earlierHtml(lists, pinKey) {
+  const sum = L.earlierSummary(lists);
+  state.earlierSum = sum;
+  if (!sum) return '';
+  const open = state.showEarlier;
+  return `<div class="earlier${open ? ' is-open' : ''}" id="earlier">
+    <button type="button" class="sum" data-action="earlier" data-fid="earlier" aria-expanded="${open}">
+      <span class="txt" id="earlier-txt">${earlierText(sum, open)}</span>${ICON_CHEV}</button>
+    <div class="ex"${open ? '' : ' inert'}><div><div class="rows">${
+      [...lists.arrived.map(pastRow), ...lists.enroute.map((s) => goRow(s, pinKey))].join('')
+    }</div></div></div>
+  </div>`;
+}
+
+function toggleEarlier() {
+  const box = document.getElementById('earlier');
+  if (!box || !state.earlierSum) return;
+  state.showEarlier = !state.showEarlier;
+  const open = state.showEarlier;
+  box.classList.toggle('is-open', open);
+  box.querySelector('.ex').inert = !open;
+  box.querySelector('.sum').setAttribute('aria-expanded', open);
+  document.getElementById('earlier-txt').innerHTML = earlierText(state.earlierSum, open);
 }
 
 function upcomingCard(st, pinKey) {
   const late = !st.cancelled && st.depDelay >= 1;
-  return `<article class="card up${st.key === pinKey ? ' pinned' : ''}${st.cancelled ? ' cancelled' : ''}">
+  return `<article class="card up${st.key === pinKey ? ' pinned' : ''}${st.cancelled ? ' cancelled' : ''}" data-card="${esc(st.key)}">
     ${openHtml(st.train)}
     <div class="row"><div class="body">
       <div class="tt">
@@ -356,7 +478,7 @@ function upcomingCard(st, pinKey) {
       </div>
       ${flagHtml(st.train)}
     </div>
-    ${starHtml(st, pinKey)}</div>
+    ${pinBtn(st, pinKey)}</div>
     ${stopsHtml(st.train)}
   </article>`;
 }
@@ -378,44 +500,46 @@ function footer() {
   return `<p class="footer"><a href="https://pdp-api.plk-sa.pl" title="${esc(attr)}" rel="noopener">Źródło: PKP PLK</a></p>`;
 }
 
+/** Stały szkielet: kontener przypiętych (przejścia CSS) + treść przerysowywana przy każdym renderze. */
+function mainShell() {
+  const slot = (d) => `<div class="pi none" id="pi-${d}"><div class="f f-small"><div></div></div><div class="f f-big"><div></div></div></div>`;
+  main.innerHTML = `<div class="pins-wrap empty" id="pins-wrap" inert><div class="pw-in">
+      <p class="pins-l" id="pins-l">Przypięte</p>
+      <section class="pins" aria-labelledby="pins-l">${L.PIN_DIRS.map(slot).join('')}</section>
+    </div></div>
+    <div class="content" id="content"></div>`;
+}
+
 function renderMain() {
   const n = now();
+  const content = document.getElementById('content');
   if (state.loading && !state.schedule) {
-    main.innerHTML = `<div class="sec" aria-busy="true" aria-label="Ładowanie rozkładu">
+    renderPins(null);
+    content.innerHTML = `<div class="sec" aria-busy="true" aria-label="Ładowanie rozkładu">
       <div class="skel s"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
     </div>`;
     return;
   }
   if (!L.hasToday(state.schedule, n)) {
-    main.innerHTML = `<p class="msg box"><strong>Brak rozkładu na dziś</strong>${
+    renderPins(null);
+    content.innerHTML = `<p class="msg box"><strong>Brak rozkładu na dziś</strong>${
       state.schedule ? 'Plik z rozkładem jest nieaktualny — sprawdź workflow w GitHub Actions.' : 'Nie udało się pobrać rozkładu. Sprawdź połączenie i odśwież stronę.'
     }</p>${footer()}`;
     return;
   }
 
   const dir = currentDir();
-  const pinKey = getPin().key;
   const today = L.warsawDate(n);
   const tomorrow = L.addDays(today, 1);
   const lists = L.todayLists(state.schedule, dir, state.live, n);
-  const pinned = L.pinnedState(pinKey, state.schedule, state.live, n);
-  const activePin = pinned ? pinKey : null;
+  const pinned = currentPinned();
+  const activePin = pinned[dir]?.key ?? null;
+  renderPins(pinned);
 
   const parts = [];
-  if (pinned) parts.push(pinTile(pinned));
-
   const today_ = [];
   today_.push(`<div class="sec-h"><h2>Dziś</h2><span>${esc(L.dateShort(today))}</span></div>`);
-  if (lists.arrived.length) {
-    today_.push(`<button type="button" class="toggle" data-action="arrived" data-fid="arrived" aria-expanded="${state.showArrived}">${
-      state.showArrived ? 'Ukryj pociągi, które już dojechały' : `Pokaż pociągi, które już dojechały (${lists.arrived.length})`
-    }</button>`);
-    if (state.showArrived) today_.push(`<div class="list">${lists.arrived.map(arrivedRow).join('')}</div>`);
-  }
-  if (lists.enroute.length) {
-    today_.push('<p class="label-up">W drodze</p>');
-    today_.push(`<div class="list">${lists.enroute.map((s) => enrouteCard(s, activePin)).join('')}</div>`);
-  }
+  today_.push(earlierHtml(lists, activePin));
   today_.push(`<div class="now"><span class="num">Teraz ${t(n)}</span><span aria-hidden="true"></span></div>`);
   if (lists.upcoming.length) {
     today_.push(`<div class="list">${lists.upcoming.map((s) => upcomingCard(s, activePin)).join('')}</div>`);
@@ -432,7 +556,7 @@ function renderMain() {
     <p class="note">Opóźnienia i perony pojawią się ok. 3 h przed odjazdem.</p>
   </section>`);
   parts.push(footer());
-  main.innerHTML = parts.join('');
+  content.innerHTML = parts.join('');
 }
 
 function render() {
@@ -482,13 +606,13 @@ async function refreshLive() {
   state.refreshing = true;
   renderHeader();
   try {
-    if (getPin().pending) await pushPin();
-    const keys = L.liveKeys(state.schedule, currentDir(), state.live, now(), getPin().key);
+    if (L.PIN_DIRS.some((d) => getPins()[d].pending)) await pushPins();
+    const keys = L.liveKeys(state.schedule, currentDir(), state.live, now(), pinKeys());
     // Także bez kursów (np. w nocy): odpowiedź niesie wspólny przypięty pociąg.
     const r = await fetch(`${liveBase()}/live?t=${keys.join(',')}`, timeoutOpts());
     if (!r.ok) throw new Error(String(r.status));
     const body = await r.json();
-    adoptServerPin(body);
+    if (body && ('pins' in body || 'pin' in body)) savePins(L.adoptServerPins(getPins(), body, state.schedule));
     const entries = Object.values(body?.trains || {});
     if (entries.length && entries.every((e) => e?.state === 'error')) throw new Error('all-errors');
     state.live = L.mergeLive(state.live, body, now());
@@ -515,7 +639,7 @@ async function loadDemo(name) {
     ? (/^\d{1,2}:\d{2}$/.test(nowParam) ? `${d.now.slice(0, 10)}T${nowParam.padStart(5, '0')}:00` : nowParam)
     : d.now;
   demoNow = L.localToMs(nowLocal) ?? Date.now();
-  if (d.pin) store.set('pin', d.pin);
+  if (d.pins) store.set('pins', { krk: { key: d.pins.krk ?? null }, waw: { key: d.pins.waw ?? null } });
   if (d.loading) return; // stan „ładowanie" — rozkład nie przychodzi
   state.schedule = d.schedule;
   state.live = d.live || {};
@@ -531,19 +655,23 @@ document.addEventListener('click', (e) => {
   const a = btn.dataset.action;
   if (a === 'refresh') refreshLive();
   else if (a === 'dir') {
-    if (btn.dataset.dir !== currentDir()) setDir(btn.dataset.dir);
+    const d = btn.dataset.dir;
+    if (d !== currentDir()) setDir(d);
+    // pasek przypiętego, w który stuknięto, staje się nieaktywny (inert) — fokus na przełącznik kierunku
+    if (btn.classList.contains('pin2')) hdr.querySelector(state.compact ? '.swap' : `.dir[data-dir="${d}"]`)?.focus({ preventScroll: true });
   } else if (a === 'swap') setDir(currentDir() === 'krk' ? 'waw' : 'krk');
-  else if (a === 'arrived') {
-    state.showArrived = !state.showArrived;
-    renderMain();
-  } else if (a === 'stops') {
+  else if (a === 'earlier') toggleEarlier();
+  else if (a === 'stops') {
     const key = btn.dataset.key;
     if (state.open.has(key)) state.open.delete(key);
     else state.open.add(key);
     render();
   } else if (a === 'pin') {
-    const key = btn.dataset.key;
-    setPin(getPin().key === key ? null : key);
+    const { key, pdir } = btn.dataset;
+    keepInPlace(btn); // pozycja zapamiętana przed zmianą
+    setPin(pdir, getPins()[pdir].key === key ? null : key);
+    syncListPins();
+    renderPins(currentPinned());
   }
 });
 
@@ -563,7 +691,10 @@ document.addEventListener('visibilitychange', () => {
 // --------------------------------------------------------------------------- start
 
 async function start() {
+  document.documentElement.classList.add('booting'); // pierwszy obraz bez animacji
+  mainShell();
   render();
+  requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('booting')));
   if (DEMO) {
     try {
       await loadDemo(DEMO);

@@ -267,6 +267,35 @@ export function todayLists(schedule, dir, live, now) {
   return out;
 }
 
+/** Polska liczba mnoga: 1 dojechał, 2–4 dojechały, 5+ dojechało (12–14 jak 5+). */
+export function plural(n, one, few, many) {
+  if (n === 1) return one;
+  const d = n % 10;
+  const h = n % 100;
+  return d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
+}
+
+/**
+ * Zwinięty wiersz „Wcześniejsze" (dojechane, odwołane przed teraz, w drodze) albo null, gdy nic nie ma.
+ * `next` — najbliższy przyjazd pociągu w drodze.
+ */
+export function earlierSummary(lists) {
+  const go = lists.enroute.length;
+  const cx = lists.arrived.filter((s) => s.cancelled).length;
+  const ok = lists.arrived.length - cx;
+  if (!go && !ok && !cx) return null;
+  const parts = [
+    go && `${go} w drodze`,
+    ok && `${ok} ${plural(ok, 'dojechał', 'dojechały', 'dojechało')}`,
+    cx && `${cx} ${plural(cx, 'odwołany', 'odwołane', 'odwołanych')}`,
+  ].filter(Boolean);
+  const next = [...lists.enroute].sort((a, b) => a.expArr - b.expArr)[0];
+  return {
+    text: `Wcześniejsze: ${parts.join(', ')}`,
+    next: next ? `najbliższy przyjazd ${fmtTime(next.expArr)} · ${trainLabel(next.train)}` : null,
+  };
+}
+
 export function tomorrowList(schedule, dir, now) {
   const tomorrow = addDays(warsawDate(now), 1);
   return (schedule?.trains || [])
@@ -274,7 +303,57 @@ export function tomorrowList(schedule, dir, now) {
     .sort((a, b) => a.from.dep - b.from.dep);
 }
 
-// --------------------------------------------------------------------------- przypięty (5.5)
+// --------------------------------------------------------------------------- przypięte (5.5)
+// Osobno dla każdego kierunku: {krk: {key, at, pending}, waw: {…}}. `pending` = zmiana niezapisana w Workerze.
+
+export const PIN_DIRS = ['krk', 'waw'];
+
+function onePin(v) {
+  if (typeof v === 'string') return { key: v, at: null, pending: false };
+  if (v && typeof v === 'object') {
+    return { key: typeof v.key === 'string' ? v.key : null, at: v.at ?? null, pending: !!v.pending };
+  }
+  return { key: null, at: null, pending: false };
+}
+
+/** Kierunek kursu z rozkładu albo null. */
+export function trainDir(key, schedule) {
+  return (schedule?.trains || []).find((t) => t.key === key)?.dir ?? null;
+}
+
+/**
+ * Przypięte z pamięci lokalnej. `legacy` — stary zapis jednego pociągu (`localStorage["pin"]`):
+ * trafia do kierunku swojego kursu, a nieznany kurs przepada.
+ */
+export function loadPins(stored, legacy, schedule) {
+  const out = { krk: onePin(stored?.krk), waw: onePin(stored?.waw) };
+  if (!stored && legacy) {
+    const p = onePin(legacy);
+    const dir = p.key ? trainDir(p.key, schedule) : null;
+    if (dir) out[dir] = p;
+  }
+  return out;
+}
+
+/**
+ * Przypięte z odpowiedzi /live (`pins`); kierunek z niezapisaną lokalną zmianą zostaje lokalny.
+ * Worker sprzed podziału na kierunki odsyła jedno `pin` — wtedy trafia do kierunku swojego kursu.
+ */
+export function adoptServerPins(local, body, schedule) {
+  const out = { ...local };
+  if (body?.pins && typeof body.pins === 'object') {
+    for (const dir of PIN_DIRS) {
+      if (out[dir]?.pending || !(dir in body.pins)) continue;
+      const sp = body.pins[dir];
+      out[dir] = { key: sp?.key ?? null, at: sp?.at ?? null, pending: false };
+    }
+  } else if (body && 'pin' in body) {
+    const key = body.pin?.key ?? null;
+    const dir = key ? trainDir(key, schedule) : null;
+    if (dir && !out[dir]?.pending) out[dir] = { key, at: body.pin.at ?? null, pending: false };
+  }
+  return out;
+}
 
 export function canPin(st) {
   return !!st && !st.cancelled && (st.status === 'upcoming' || st.status === 'enroute');
@@ -292,17 +371,37 @@ export function pinnedState(pinKey, schedule, live, now) {
   return st;
 }
 
+/** {krk: stan | null, waw: …}; kurs zapisany pod niewłaściwym kierunkiem jest pomijany. */
+export function pinnedStates(pins, schedule, live, now) {
+  const out = {};
+  for (const dir of PIN_DIRS) {
+    const st = pinnedState(pins?.[dir]?.key, schedule, live, now);
+    out[dir] = st && st.train.dir === dir ? st : null;
+  }
+  return out;
+}
+
+/** Odliczanie na kafelku przypiętego: „odjazd za 20 min", „przyjazd za 1 h 5 min", „dojechał o 10:49". */
+export function pinCountdown(st, now) {
+  if (st.cancelled) return 'pociąg odwołany';
+  if (st.status === 'upcoming') return `odjazd ${countdown(st.expDep, now)}`;
+  if (st.status === 'enroute') return `przyjazd ${countdown(st.expArr, now)}`;
+  return `dojechał o ${fmtTime(st.expArr)}`;
+}
+
 // --------------------------------------------------------------------------- zapytania (5.6)
 
-/** Kursy do Workera: przypięty, w drodze, nadchodzące ≤ 4 h, dojechane < 30 min; maks. 30, najbliższe pierwsze. */
-export function liveKeys(schedule, dir, live, now, pinKey) {
+/** Kursy do Workera: przypięte, w drodze, nadchodzące ≤ 4 h, dojechane < 30 min; maks. 30, najbliższe pierwsze. */
+export function liveKeys(schedule, dir, live, now, pinKeys) {
   const lists = todayLists(schedule, dir, live, now);
   const enroute = [...lists.enroute].sort((a, b) => a.expArr - b.expArr);
   const upcoming = lists.upcoming.filter((s) => s.expDep <= now + LIVE_HORIZON_MS);
   const arrived = lists.arrived.filter((s) => s.expArr >= now - LIVE_RECENT_ARRIVAL_MS).sort((a, b) => b.expArr - a.expArr);
   const keys = [];
-  const pin = pinnedState(pinKey, schedule, live, now);
-  if (pin) keys.push(pin.key);
+  for (const k of [].concat(pinKeys ?? [])) {
+    const pin = pinnedState(k, schedule, live, now);
+    if (pin && !keys.includes(pin.key)) keys.push(pin.key);
+  }
   for (const s of [...enroute, ...upcoming, ...arrived]) if (!keys.includes(s.key)) keys.push(s.key);
   return keys.slice(0, MAX_LIVE_KEYS);
 }

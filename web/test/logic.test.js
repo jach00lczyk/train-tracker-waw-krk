@@ -290,6 +290,75 @@ test('pin with live delay follows expected arrival', () => {
   assert.equal(L.pinnedState(t.key, schedule([t]), live, at('10:59')).status, 'enroute');
 });
 
+test('pins per direction: pinnedStates ignores a key stored under the wrong direction', () => {
+  const k = train({ oid: 3, dep: '08:05', arr: '10:44' });
+  const w = train({ oid: 4, dir: 'waw', dep: '17:00', arr: '19:18' });
+  const s = schedule([k, w]);
+  const pins = { krk: { key: k.key }, waw: { key: w.key } };
+  const st = L.pinnedStates(pins, s, {}, at('07:50'));
+  assert.equal(st.krk.key, k.key);
+  assert.equal(st.waw.key, w.key);
+  assert.deepEqual(L.pinnedStates({ krk: { key: w.key }, waw: { key: null } }, s, {}, at('07:50')), { krk: null, waw: null });
+  assert.deepEqual(L.pinnedStates(undefined, s, {}, at('07:50')), { krk: null, waw: null });
+});
+
+test('pins: local storage, legacy single pin goes to its train direction', () => {
+  const w = train({ oid: 4, dir: 'waw', dep: '17:00', arr: '19:18' });
+  const s = schedule([w]);
+  const empty = { key: null, at: null, pending: false };
+  assert.deepEqual(L.loadPins(null, null, s), { krk: empty, waw: empty });
+  assert.deepEqual(L.loadPins({ krk: { key: 'a', at: 'x', pending: true } }, null, s),
+    { krk: { key: 'a', at: 'x', pending: true }, waw: empty });
+  assert.deepEqual(L.loadPins(null, { key: w.key, at: 'x', pending: false }, s).waw, { key: w.key, at: 'x', pending: false });
+  assert.deepEqual(L.loadPins(null, w.key, s).waw.key, w.key); // najstarszy zapis: sam klucz
+  assert.deepEqual(L.loadPins(null, '2026/999/2026-11-18', s), { krk: empty, waw: empty }); // nieznany kurs przepada
+  assert.equal(L.loadPins({ krk: empty, waw: empty }, w.key, s).waw.key, null); // nowy zapis wygrywa
+  assert.equal(L.trainDir(w.key, s), 'waw');
+});
+
+test('pins: adopt server state per direction, pending local change wins; old Worker field', () => {
+  const k = train({ oid: 3, dep: '08:05', arr: '10:44' });
+  const s = schedule([k]);
+  const local = { krk: { key: 'mine', at: null, pending: true }, waw: { key: 'old', at: null, pending: false } };
+  const body = { pins: { krk: { key: 'srv', at: 't' }, waw: null } };
+  assert.deepEqual(L.adoptServerPins(local, body, s), { krk: local.krk, waw: { key: null, at: null, pending: false } });
+  assert.deepEqual(L.adoptServerPins(local, { trains: {} }, s), local); // bez KV — bez zmian
+  const settled = { krk: { key: null, at: null, pending: false }, waw: local.waw };
+  assert.deepEqual(L.adoptServerPins(settled, { pin: { key: k.key, at: 't' } }, s).krk, { key: k.key, at: 't', pending: false });
+  assert.equal(L.adoptServerPins(settled, { pin: { key: '2026/999/2026-11-18', at: 't' } }, s).krk.key, null);
+});
+
+test('pin countdown on the tile', () => {
+  const t = train({ oid: 3, dep: '08:05', arr: '10:44' });
+  const s = schedule([t]);
+  assert.equal(L.pinCountdown(L.pinnedState(t.key, s, {}, at('07:50')), at('07:50')), 'odjazd za 15 min');
+  assert.equal(L.pinCountdown(L.pinnedState(t.key, s, {}, at('09:39')), at('09:39')), 'przyjazd za 1 h 5 min');
+  assert.equal(L.pinCountdown(L.pinnedState(t.key, s, {}, at('10:50')), at('10:50')), 'dojechał o 10:44');
+  const cx = L.pinnedState(t.key, s, { [t.key]: okEntry([], 'X', '2026-11-18T06:45:00Z') }, at('07:50'));
+  assert.equal(L.pinCountdown(cx, at('07:50')), 'pociąg odwołany');
+});
+
+test('earlier summary: counts, polish plurals, nearest arrival', () => {
+  const trains = [
+    train({ oid: 1, dep: '05:20', arr: '07:38' }), // dojechał
+    train({ oid: 2, dep: '05:45', arr: '08:27' }), // odwołany przed teraz
+    train({ oid: 3, dep: '06:15', arr: '09:10' }), // w drodze
+    train({ oid: 4, dep: '06:50', arr: '09:08' }), // w drodze, wcześniej na miejscu
+    train({ oid: 5, dep: '08:05', arr: '10:44' }),
+  ];
+  const live = { [trains[1].key]: okEntry([], 'X', '2026-11-18T06:45:00Z') };
+  const lists = L.todayLists(schedule(trains), 'krk', live, at('07:50'));
+  assert.deepEqual(L.earlierSummary(lists), {
+    text: 'Wcześniejsze: 2 w drodze, 1 dojechał, 1 odwołany',
+    next: 'najbliższy przyjazd 09:08 · IC 3504',
+  });
+  assert.equal(L.earlierSummary(L.todayLists(schedule([trains[4]]), 'krk', {}, at('07:50'))), null);
+  assert.deepEqual(L.earlierSummary(L.todayLists(schedule([trains[0]]), 'krk', {}, at('07:50'))),
+    { text: 'Wcześniejsze: 1 dojechał', next: null });
+  assert.deepEqual([1, 2, 4, 5, 12, 14, 22, 25].map((n) => L.plural(n, 'dojechał', 'dojechały', 'dojechało')),
+    ['dojechał', 'dojechały', 'dojechały', 'dojechało', 'dojechało', 'dojechało', 'dojechały', 'dojechało']);
+});
+
 // --------------------------------------------------------------------------- zapytania
 
 test('live keys: pin first, enroute, upcoming ≤ 4 h, recently arrived; max 30', () => {
@@ -304,6 +373,10 @@ test('live keys: pin first, enroute, upcoming ≤ 4 h, recently arrived; max 30'
   ];
   const keys = L.liveKeys(schedule(trains), 'krk', {}, at('07:50'), trains[6].key);
   assert.deepEqual(keys.map((k) => +k.split('/')[1]), [7, 3, 4, 5, 1]);
+
+  // dwa przypięte (oba kierunki) — oba na początku
+  const both = L.liveKeys(schedule(trains), 'krk', {}, at('07:50'), [trains[3].key, trains[6].key]);
+  assert.deepEqual(both.slice(0, 3).map((k) => +k.split('/')[1]), [4, 7, 3]);
 
   const many = Array.from({ length: 40 }, (_, i) => train({ oid: 100 + i, dep: '08:00', arr: '10:30' }));
   assert.equal(L.liveKeys(schedule(many), 'krk', {}, at('07:50')).length, 30);

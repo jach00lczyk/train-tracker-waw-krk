@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Zwarty widok, „Wcześniejsze”, dwa przypięte pociągi (24.11.2026)
+Wg prototypu uzgodnionego z właścicielem.
+- **Przypięte osobno do Krakowa i do Warszawy.** Worker: klucze KV `pin:krk` / `pin:waw`, `PUT /pin` z polem
+  `dir`, odpowiedź `/live` z polem `pins` (testy: niezależne kierunki, walidacja `dir`, wspólny limit zapisów).
+  Strona: `localStorage["pins"]`, stary zapis jednego pociągu trafia do kierunku swojego kursu; rozumie też stare
+  pole `pin`, dopóki nowy Worker nie zostanie wdrożony. **Wymaga `npx wrangler deploy`** — po wdrożeniu dotychczasowy
+  wspólny pin jest zapomniany (raz trzeba przypiąć ponownie).
+- **Kontener „Przypięte”**: KRK zawsze u góry, WAW na dole; wybrany kierunek jako duży, zwarty kafelek (3 wiersze),
+  drugi jako mały pasek, który po stuknięciu przełącza kierunek. Zamiana, dodanie i odpięcie płynne; karta, w której
+  stuknięto pinezkę, zostaje pod palcem (`keepInPlace`, SPEC 6).
+- **„Wcześniejsze”** zamiast „Pokaż pociągi, które już dojechały” i kart „W drodze”: domyślnie zwinięte do jednego
+  wiersza z podsumowaniem, po rozwinięciu (płynnie) zwarte wiersze — dojechane i odwołane przygaszone z ✓/✕,
+  w drodze z pinezką, „ostatnio: …” i paskiem postępu.
+- **Pinezki zamiast gwiazdek**; **zwarta gęstość** całego ekranu (nagłówek, karty, odstępy).
+- Logika z testami: `loadPins`, `adoptServerPins`, `pinnedStates`, `pinCountdown`, `earlierSummary`, `plural`,
+  `liveKeys` z dwoma przypiętymi. SPEC 4.1, 5.4–5.6, 6, 8.1–8.4, 14 zaktualizowane.
+
 ### Poprawki po pierwszym dniu na telefonie (21.11.2026)
 - **„W drodze” dopiero po odjeździe z naszej stacji.** Pociąg przelotowy (np. IC z Przemyśla) ma status P
   już przed Krakowem, a PLK ustawia `cf` na naszym postoju po samym przyjeździe — strona pokazywała go jako

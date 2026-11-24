@@ -69,11 +69,11 @@ function liveEntry(def, train, group, checkedAt) {
   return { ...base, train_status: status, stops };
 }
 
-function scenario({ now, liveAt, generatedAt, lists, tomorrow, pin }) {
+function scenario({ now, liveAt, generatedAt, lists, tomorrow, pins = {} }) {
   const trains = [];
   const live = {};
   let oid = 600000;
-  let pinKey = null;
+  const pinKeys = { krk: null, waw: null };
   for (const dir of ['krk', 'waw']) {
     for (const group of ['arrived', 'enroute', 'upcoming']) {
       for (const def of lists[dir][group]) {
@@ -81,7 +81,7 @@ function scenario({ now, liveAt, generatedAt, lists, tomorrow, pin }) {
         trains.push(t);
         const e = liveEntry(def, t, group, liveAt);
         if (e) live[t.key] = e;
-        if (def.id === pin) pinKey = t.key;
+        if (def.id === pins[dir]) pinKeys[dir] = t.key;
       }
     }
     for (const [dep, arr, cat, wg] of tomorrow[dir]) {
@@ -92,7 +92,7 @@ function scenario({ now, liveAt, generatedAt, lists, tomorrow, pin }) {
   return {
     now: `${DATE}T${now}:00`,
     live_at: iso(liveAt),
-    pin: pinKey,
+    pins: pinKeys,
     schedule: {
       schema_version: 1, generated_at: generatedAt, service_today: generatedAt.slice(0, 10),
       valid_from: addDays(DATE, -1), valid_to: addDays(DATE, 2), source: { demo: true },
@@ -178,21 +178,21 @@ const WIECZOR_LISTS = {
 
 const rano = scenario({
   now: '07:50', liveAt: ms(DATE, '07:47'), generatedAt: '2026-11-18T01:31:12Z',
-  lists: RANO_LISTS, tomorrow: TOMORROW, pin: 'k4',
+  lists: RANO_LISTS, tomorrow: TOMORROW, pins: { krk: 'k4', waw: 'w7' },
 });
 // Wieczór: ostatnie udane odświeżenie 1 h 12 min temu (dane > 35 min → rozkładowo), rozkład z wczoraj.
 const wieczor = scenario({
   now: '18:40', liveAt: ms(DATE, '17:28'), generatedAt: '2026-11-17T01:31:12Z',
-  lists: WIECZOR_LISTS, tomorrow: TOMORROW, pin: null,
+  lists: WIECZOR_LISTS, tomorrow: TOMORROW,
 });
 
 const stary = { ...rano, schedule: { ...rano.schedule, generated_at: '2026-11-17T01:31:12Z' } };
 const brak = {
-  ...rano, live: {}, pin: null,
+  ...rano, live: {}, pins: null,
   schedule: { ...rano.schedule, generated_at: '2026-11-14T01:31:12Z', trains: rano.schedule.trains.map((t) => ({ ...t, date: '2026-11-15', key: t.key.replace(DATE, '2026-11-15') })) },
 };
 const blad = { ...rano, live_at: iso(ms(DATE, '06:20')), live_error: true };
-const koniec = { ...rano, now: `${DATE}T23:50:00`, pin: null };
+const koniec = { ...rano, now: `${DATE}T23:50:00`, pins: null };
 const awarie = {
   states: {
     ladowanie: { ...rano, loading: true },

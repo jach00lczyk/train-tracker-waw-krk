@@ -52,8 +52,10 @@ Adres: https://jach00lczyk.github.io/train-tracker-waw-krk/
 3. Uruchamiaj z ikony — strona otwiera się na pełnym ekranie, bez paska Safari.
 
 Rano (przed 12:00) strona otwiera się na „Do Krakowa”, po południu na „Do Warszawy”; ręczny wybór
-obowiązuje do północy. Gwiazdka przypina pociąg w kafelku „Twój pociąg” — **jeden wspólny dla wszystkich
-urządzeń** (Safari, ikona na ekranie, telefony domowników). Stuknięcie w kafelek pokazuje stacje pośrednie.
+obowiązuje do północy. Pinezka przypina pociąg — **osobno do Krakowa i do Warszawy**, wspólnie dla wszystkich
+urządzeń (Safari, ikona na ekranie, telefony domowników). Oba przypięte są u góry w kontenerze „Przypięte”;
+stuknięcie w mały pasek przełącza kierunek. Pociągi, które już dojechały albo są w drodze, są zwinięte
+w wierszu „Wcześniejsze”. Stuknięcie w kafelek pokazuje stacje pośrednie.
 
 Ikona dodana przed 21.11.2026 ma rozmytą górę ekranu (iOS 26.1+). iOS czyta styl paska statusu tylko przy
 dodawaniu do ekranu — **usuń ikonę i dodaj ją ponownie**.

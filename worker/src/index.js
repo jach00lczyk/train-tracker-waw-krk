@@ -1,5 +1,6 @@
 // Pośrednik opóźnień na żywo (SPEC 4): GET /live?t=<sid>/<oid>/<data>,…
-// oraz wspólny przypięty pociąg (SPEC 5.5): pole `pin` w odpowiedzi /live, zapis PUT /pin (Workers KV).
+// oraz wspólne przypięte pociągi, osobno dla każdego kierunku (SPEC 5.5): pole `pins` w odpowiedzi /live,
+// zapis PUT /pin (Workers KV).
 // Trzyma klucz PDP_API_KEY (sekret Workera) — klucz nigdy nie trafia do odpowiedzi ani logów.
 // Strategia upstream B: /api/v1/operations/train/{sid}/{oid}/{data} per kurs, z cache i limitem.
 // Zero zależności runtime.
@@ -19,7 +20,8 @@ export const TTL = {
   error: 30, // 5xx, sieć, inne
 };
 const DEFAULT_RETRY_AFTER_S = 300;
-const PIN_KV_KEY = 'pin';
+const PIN_DIRS = ['krk', 'waw'];
+const pinKvKey = (dir) => `pin:${dir}`;
 const MAX_PIN_WRITES_PER_HOUR = 60; // limit KV (darmowy: 1000 zapisów/dobę) — z zapasem
 const MAX_PIN_BODY = 200;
 
@@ -171,12 +173,16 @@ async function fetchUpstream(key, env, deps, state) {
 
 // --------------------------------------------------------------------------- przypięty pociąg
 
-/** {key, at} albo null; brak KV (np. testy lokalne bez wiązania) → undefined = pole pomijane. */
-async function pinRead(kv) {
+/** {krk: {key, at} | null, waw: …}; brak KV (np. testy lokalne bez wiązania) albo błąd → undefined = pole pomijane. */
+async function pinsRead(kv) {
   if (!kv) return undefined;
   try {
-    const v = await kv.get(PIN_KV_KEY, { type: 'json' });
-    return v && (v.key === null || validKey(v.key)) ? { key: v.key, at: v.at } : null;
+    const out = {};
+    for (const dir of PIN_DIRS) {
+      const v = await kv.get(pinKvKey(dir), { type: 'json' });
+      out[dir] = v && (v.key === null || validKey(v.key)) ? { key: v.key, at: v.at } : null;
+    }
+    return out;
   } catch {
     return undefined;
   }
@@ -194,19 +200,21 @@ async function handlePin(request, env, deps, state, origin) {
   } catch {
     return json({ error: 'bad_request' }, 400, origin);
   }
+  const dir = body?.dir;
   const key = body?.key ?? null;
+  if (!PIN_DIRS.includes(dir)) return json({ error: 'bad_request' }, 400, origin);
   if (key !== null && (typeof key !== 'string' || !validKey(key))) return json({ error: 'bad_request' }, 400, origin);
   state.pinWrites = state.pinWrites.filter((t) => nowMs - t < HOUR_MS);
   if (state.pinWrites.length >= MAX_PIN_WRITES_PER_HOUR) return json({ error: 'rate_limited' }, 429, origin);
   state.pinWrites.push(nowMs);
   const pin = { key, at: iso(nowMs) };
   try {
-    await deps.kv.put(PIN_KV_KEY, JSON.stringify(pin));
+    await deps.kv.put(pinKvKey(dir), JSON.stringify(pin));
   } catch {
     return json({ error: 'storage' }, 502, origin);
   }
-  deps.log(`pin ${key ? 'set' : 'cleared'}`);
-  return json({ pin }, 200, origin);
+  deps.log(`pin ${dir} ${key ? 'set' : 'cleared'}`);
+  return json({ dir, pin }, 200, origin);
 }
 
 // --------------------------------------------------------------------------- wejście
@@ -271,8 +279,8 @@ export async function handle(request, env, deps, state) {
   const ordered = {};
   for (const key of keys) ordered[key] = trains[key];
   const out = { fetched_at: iso(nowMs), trains: ordered };
-  const pin = await pinRead(deps.kv);
-  if (pin !== undefined) out.pin = pin;
+  const pins = await pinsRead(deps.kv);
+  if (pins !== undefined) out.pins = pins;
   return json(out, 200, okOrigin);
 }
 
@@ -285,7 +293,7 @@ export default {
       cache: typeof caches !== 'undefined' ? caches.default : null,
       now: () => Date.now(),
       log: (msg) => console.log(msg),
-      kv: env.STATE || null, // Workers KV na wspólny przypięty pociąg (wrangler.toml)
+      kv: env.STATE || null, // Workers KV na wspólne przypięte pociągi (wrangler.toml)
     };
     try {
       return await handle(request, env, deps, isolateState);

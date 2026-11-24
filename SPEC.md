@@ -21,7 +21,8 @@ Strona (PWA dodana do ekranu głównego iPhone'a), która:
 4. Na górze **duży przełącznik kierunku**: przed południem automatycznie „Do Krakowa", po południu
    „Do Warszawy"; ręczny wybór pamiętany do końca dnia. Po przewinięciu nagłówek zwija się do
    „Do KRK" / „Do WAW".
-5. Gwiazdka przypina pociąg w kafelku „Twój pociąg" (godziny, odliczanie, peron, opóźnienie).
+5. Pinezka przypina pociąg — **osobno do Krakowa i do Warszawy** — w kontenerze „Przypięte" (godziny,
+   odliczanie, peron, opóźnienie). Pociągi przed „Teraz" (dojechały, odwołane, w drodze) są zwinięte w jeden wiersz.
 
 Wygląd jest uzgodniony z właścicielem — sekcja 8 i `docs/design/mockup.dc.html`.
 
@@ -251,14 +252,17 @@ Zwykłe żądanie GET bez własnych nagłówków (bez preflightu CORS).
   S/N = nie wyruszył, P = w drodze, C/F = zakończony, X = odwołany, Q = częściowo odwołany.
 - Klucze nieznane / zły format → 400. Brak lub pusty `t` → `trains: {}` (strona pyta wtedy tylko o
   przypięty pociąg). Wynik zawsze bez klucza API i bez nagłówków upstream.
-- `pin` — wspólny przypięty pociąg (5.5): `{"key": "2026/…/2026-11-21" | null, "at": "<czas zapisu>"}`
-  albo `null` (nic nie zapisano). Pole pominięte, gdy Worker nie ma powiązania KV.
+- `pins` — wspólne przypięte pociągi, osobno dla każdego kierunku (5.5):
+  `{"krk": {"key": "2026/…/2026-11-21" | null, "at": "<czas zapisu>"} | null, "waw": …}` (`null` = nic nie
+  zapisano). Pole pominięte, gdy Worker nie ma powiązania KV.
 
 ```
-PUT {LIVE_URL}/pin    body: {"key": "<sid>/<oid>/<date>"} albo {"key": null}    → {"pin": {key, at}}
+PUT {LIVE_URL}/pin    body: {"dir": "krk"|"waw", "key": "<sid>/<oid>/<date>" | null}    → {"dir", "pin": {key, at}}
 ```
-Zapis w Workers KV (`STATE`, klucz `pin`); `at` = czas Workera. Walidacja jak w `t`, ciało ≤ 200 B,
-maks. 60 zapisów/h na izolat (KV free: 1000 zapisów/dobę). CORS: preflight `GET, PUT` + `Content-Type`.
+Zapis w Workers KV (`STATE`, klucze `pin:krk` i `pin:waw`); `at` = czas Workera. Walidacja jak w `t` + `dir`,
+ciało ≤ 200 B, maks. 60 zapisów/h na izolat łącznie (KV free: 1000 zapisów/dobę). CORS: preflight `GET, PUT` +
+`Content-Type`. Stary klucz `pin` (jeden pociąg, do 24.11.2026) nie jest już czytany; strona rozumie jeszcze
+pole `pin` w odpowiedzi — na czas, zanim nowy Worker zostanie wdrożony.
 
 ### 4.2 Strategia upstream (wybór w fazie 0)
 
@@ -359,28 +363,35 @@ Dla pociągu z `from`/`to` i odpowiedzi Workera (`stops`). Dane starsze niż **3
 - Flaga stacji: gdy `waw_station` ≠ Warszawa Centralna — `z W-wy Gdańskiej` (kierunek `krk`) /
   `do W-wy Gdańskiej` (`waw`); nazwa w dopełniaczu z mapy (`Gdańska → Gdańskiej`, `Zachodnia → Zachodniej`,
   `Wschodnia → Wschodniej`).
-- Odliczanie: `za 20 min`, `za 1 h 15 min`; w kafelku z prefiksem `odjazd` / `przyjazd`.
+- Odliczanie: `za 20 min`, `za 1 h 15 min`; w kafelku z prefiksem `odjazd` / `przyjazd`, po przyjeździe
+  `dojechał o 10:49`, odwołany `pociąg odwołany` (`pinCountdown`).
+- Wiersz „Wcześniejsze" (`earlierSummary`): `Wcześniejsze: 3 w drodze, 1 dojechał, 1 odwołany` (liczba mnoga:
+  `dojechały` / `dojechało`, `odwołane` / `odwołanych`) + `najbliższy przyjazd 09:08 · EIP 1302`.
 - Czas trwania (Jutro): `2 h 18 min`.
 - Wiek odświeżenia: `odśw. przed chwilą` (< 1 min), `odśw. 7 min temu`, `odśw. 1 h 12 min temu`;
   **czerwone, gdy ≥ 60 min**.
 - Wiek rozkładu: `rozkład z dziś` / `rozkład z wczoraj` / `rozkład sprzed N dni` (wg daty
   `generated_at` w Europe/Warsaw); **czerwone, gdy nie „dziś"**.
 
-### 5.5 Przypięty pociąg
+### 5.5 Przypięte pociągi (osobno dla każdego kierunku)
 
-- Jeden naraz, **wspólny dla wszystkich urządzeń** (decyzja właściciela, 21.11.2026): zapis `PUT /pin`
-  w Workerze (KV), odczyt z pola `pin` odpowiedzi `/live` — bez osobnego pollingu (6). Kopia lokalna
-  `localStorage["pin"] = {key, at, pending}`; `pending` = zmiana niezapisana w Workerze (ponowienie przy
-  następnym odświeżeniu; do tego czasu lokalna zmiana wygrywa). Gwiazdka na innym pociągu zastępuje
-  poprzedni. Każdy z linkiem może go zmienić (świadomie: link zna tylko rodzina).
-- Kafelek pokazuje się **niezależnie od wybranego kierunku** (to „jej" pociąg).
-- Znika samoczynnie 15 min po przyjeździe albo gdy data kursu jest starsza niż wczoraj.
-- Przypinać można pociągi z listy „Dziś" (nadchodzące i w drodze); odwołanego nie.
+- **Dwa niezależne miejsca: do Krakowa i do Warszawy** (decyzja właściciela, 24.11.2026 — rano „tam", wieczorem
+  „z powrotem"). Pinezka na pociągu zastępuje poprzedni pociąg **tego samego** kierunku; drugi kierunek zostaje.
+- **Wspólne dla wszystkich urządzeń** (decyzja z 21.11.2026): zapis `PUT /pin` w Workerze (KV), odczyt z pola
+  `pins` odpowiedzi `/live` — bez osobnego pollingu (6). Kopia lokalna `localStorage["pins"] =
+  {krk: {key, at, pending}, waw: …}`; `pending` = zmiana niezapisana w Workerze (ponowienie przy następnym
+  odświeżeniu; do tego czasu lokalna zmiana wygrywa — per kierunek). Stary zapis `localStorage["pin"]` trafia
+  przy odczycie do kierunku swojego kursu (`loadPins`). Każdy z linkiem może je zmienić (link zna tylko rodzina).
+- Kontener „Przypięte" pokazuje się **niezależnie od wybranego kierunku**: pociąg wybranego kierunku jako duży
+  kafelek, drugiego — jako mały pasek (8.3).
+- Każdy znika samoczynnie 15 min po przyjeździe albo gdy data kursu jest starsza niż wczoraj.
+- Przypinać można pociągi z listy „Dziś" (nadchodzące i w drodze); odwołanego nie. Kurs zapisany pod
+  niewłaściwym kierunkiem jest pomijany (`pinnedStates`).
 
 ### 5.6 Które kursy wysyłać do Workera
 
 Przy każdym odświeżeniu: pociągi z listy „Dziś" w **wybranym kierunku**, które są w drodze,
-nadchodzą w ciągu 4 h lub dojechały < 30 min temu, plus przypięty. Maks. 30, najbliższe pierwsze.
+nadchodzą w ciągu 4 h lub dojechały < 30 min temu, plus oba przypięte (na początku). Maks. 30, najbliższe pierwsze.
 Zmiana kierunku → natychmiastowe odświeżenie dla nowego kierunku.
 
 ---
@@ -389,10 +400,12 @@ Zmiana kierunku → natychmiastowe odświeżenie dla nowego kierunku.
 
 - Przy otwarciu, przy powrocie do karty (`visibilitychange` → visible, jeśli ostatnie > 60 s temu),
   przy zmianie kierunku, po przycisku i **co 60 s, tylko gdy strona jest widoczna**. Zapytanie idzie
-  także bez kursów do sprawdzenia (pusty `t`) — niesie wspólny przypięty pociąg (5.5). Jedyne inne
-  zapytanie do Workera: `PUT /pin` po stuknięciu gwiazdki (bez timera).
+  także bez kursów do sprawdzenia (pusty `t`) — niesie wspólne przypięte pociągi (5.5). Jedyne inne
+  zapytanie do Workera: `PUT /pin` po stuknięciu pinezki (bez timera).
 - Karta w tle → zero zapytań. Żadnych innych timerów poza tikiem 30 s, który przelicza etykiety
-  (wiek odświeżenia, odliczanie, statusy wg `now`) bez sieci.
+  (wiek odświeżenia, odliczanie, statusy wg `now`) bez sieci. Wyjątek bez sieci: po stuknięciu pinezki pętla
+  `requestAnimationFrame` (`keepInPlace`, min. 0,6 s, maks. 2 s) koryguje przewinięcie, żeby karta nie uciekła
+  spod palca, gdy kontener „Przypięte" rośnie lub maleje; dotyk lub kółko ją przerywa.
 - Przycisk odświeżania: zawsze wysyła zapytanie (Worker i tak ma cache); w trakcie ikona się kręci
   (`prefers-reduced-motion` → bez animacji).
 - Błąd sieci / Workera: zostają poprzednie dane, wiek odświeżenia rośnie (i robi się czerwony ≥ 60 min);
@@ -440,6 +453,8 @@ po przewinięciu).
 | `--late` | `#8A2E0F` | godziny po opóźnieniu |
 | `--track` / `--progress` | `#C7DAE6` / `#55630F` | pasek postępu |
 | `--flag` | `#D8B4FE` / tekst `#3B0764` | flaga stacji innej niż Centralna (liliowa) |
+| `--dim` | `#B5C98C` na `--bg-deep` (4.6:1) | przygaszone wiersze: dojechały, odwołane |
+| `--late-on-dark` | `#FDBA74` na `--bg-deep` (4.9:1) | opóźnienie w liście stacji wiersza „w drodze" |
 | `--stale` | `#DC2626` / tekst `#FFFFFF` | nieaktualne odświeżenie / rozkład |
 | pastylka planowo | `#DCE9F1` / `#1F4A63` | |
 | pastylka +N min | `#FFE4D2` / `#8A2E0F` | |
@@ -456,11 +471,11 @@ Kontrast tekstu ≥ 4.5:1 (sprawdzone w makiecie — nie zmieniaj par kolorów b
 ### 8.2 Nagłówek (przyklejony, `position: sticky`)
 
 **Rozwinięty** (scroll ≤ 60 px):
-- Wiersz 1: „Pociągi" (24 px, 700, limonka) + data („środa, 18 listopada"); po prawej dwa małe
+- Wiersz 1: „Pociągi" (20 px, 700, limonka) + data („środa, 18 listopada"); po prawej dwa małe
   napisy jeden pod drugim (`odśw. X min temu`, `rozkład z dziś`) i okrągły przycisk odświeżania 44 px.
   Nieaktualne → czerwona pastylka (5.4).
-- Wiersz 2: przełącznik — dwa przyciski w siatce 2 kolumn, min. 68 px wysokości: mały podpis
-  („z Warszawy" / „z Krakowa Gł.") + „Do Krakowa" / „Do Warszawy" (21 px, 700). Aktywny: limonka,
+- Wiersz 2: przełącznik — dwa przyciski w siatce 2 kolumn, min. 52 px wysokości: mały podpis
+  („z Warszawy" / „z Krakowa Gł.", 12 px) + „Do Krakowa" / „Do Warszawy" (19 px, 700). Aktywny: limonka,
   nieaktywny: przezroczysty z limonkowym tekstem. `role="group"`, `aria-pressed`.
 - **Bez** tekstu o trybie automatycznym i bez „Wróć do auto".
 
@@ -471,29 +486,44 @@ zachowaj pozycję przewinięcia). **Płynne** (~0,25 s): oba układy są stale w
 klasa `compact` — tytuł i „Do KRK" przenikają się w jednej komórce, przełącznik zwija się do zera
 (`grid-template-rows`); niewidoczna część jest `inert`. `prefers-reduced-motion` → bez animacji.
 
-### 8.3 Kafelek „Twój pociąg" (limonka)
+> Układ zwarty (24.11.2026, z prototypu uzgodnionego z właścicielem): mniejsze odstępy (sekcje 14 px,
+> karty 6 px), godziny na kartach 19/16 px. Zastępuje odpowiednie wymiary z makiety.
 
-- Góra: „TWÓJ POCIĄG" (12 px, wersaliki) + „IC 3504".
-- Godziny: `08:10 → 10:49` — odjazd 40 px, przyjazd 30 px, strzałka 24 px. Przy opóźnieniu godziny
-  już przesunięte, pod spodem przekreślone `plan 08:05 → 10:44`.
-- Odliczanie: `odjazd za 20 min` (przed odjazdem) / `przyjazd za 1 h 5 min` (w drodze), 18 px, 700.
-- Pastylki: `peron 4` (ciemna pastylka) + `tor 2` (tekst) + `opóźniony +5 min` / `planowo`;
-  w drodze zamiast peronu `ostatnio: Opoczno Płd.`.
-- Flaga stacji (8.6), jeśli dotyczy.
+### 8.3 Kontener „Przypięte"
+
+- Mały napis `PRZYPIĘTE` (11 px, wersaliki, limonka) nad kontenerem; kontener: tło `--bg-deep`, ramka 1 px
+  limonkowa, promień 20 px, równy padding 6 px.
+- W środku dwa stałe miejsca: **do Krakowa zawsze u góry, do Warszawy zawsze na dole**. Pociąg wybranego
+  kierunku — duża forma (limonka), drugi — mały pasek (`--bg`). Przy zmianie kierunku każdy element zostaje
+  na swoim miejscu i tylko się rozwija / zwija; dodanie, zamiana i odpięcie też płynnie (~0,35 s, wysokość
+  przez `grid-template-rows`, treść przenika się); bez żadnego przypiętego cały kontener zwija się do zera.
+  `prefers-reduced-motion` → bez animacji.
+- **Duża forma** (bez nazwy kierunku — wynika z przełącznika): wiersz 1 `08:10 → 10:49` (32/24 px) i po prawej
+  `IC 3504`; wiersz 2 przekreślone `plan 08:05 → 10:44` (tylko przy opóźnieniu) i zaraz za nim `odjazd za 20 min` /
+  `przyjazd za 1 h 5 min` (15 px, 700); wiersz 3 `peron 4` (ciemna pastylka) + `tor 2` + `opóźniony +5 min` /
+  `planowo` / `rozkładowo`, flaga stacji; w drodze zamiast peronu `ostatnio: Opoczno Płd.` i cienki pasek postępu.
+- **Mały pasek**: `DO WARSZAWY` (11 px, wersaliki), pod spodem `EIP 1311 · odjazd za 6 h`, po prawej
+  `13:50 → 16:08`. Stuknięcie przełącza kierunek (jak przełącznik w nagłówku).
 
 ### 8.4 Sekcja „Dziś"
 
 Nagłówek „Dziś" + `śr 18.11`. Kolejno:
-1. Przycisk (przerywana ramka) `Pokaż pociągi, które już dojechały (N)` / `Ukryj pociągi, które już dojechały`
-   — domyślnie zwinięte, `aria-expanded`. Wiersz dojechanego: `05:20 → 07:41`, `EIP 1300`, pastylka.
-2. Etykieta „W DRODZE" i karty w drodze: `06:23 → 09:10` (odjazd 22 px, przyjazd 18 px; rdzawe przy
-   opóźnieniu), przekreślone `plan 06:15 → 08:58`, `IC 3502 · ostatnio: Włoszczowa Płn.`, flaga,
-   pastylka statusu w prawym górnym rogu, pasek postępu.
-3. Linia „Teraz 07:50" (limonkowa pastylka + kreska).
-4. Karty nadchodzące: `08:10 → 10:49` (jak wyżej; odwołany — przekreślony, szary), przekreślony plan,
-   wiersz `IC 3504` + pastylka + podpis (5.4), flaga; gwiazdka 44 px po prawej
-   (`aria-pressed`, `aria-label` „Przypnij IC 3504" / „Odepnij…"). Przypięty: limonkowa ramka 2 px.
+1. **„Wcześniejsze"** — przerywana limonkowa ramka, domyślnie zwinięta: `Wcześniejsze: 3 w drodze, 1 dojechał`
+   + `najbliższy przyjazd 09:08 · EIP 1302` i strzałka (`aria-expanded`). Rozwinięta (płynnie) to ta sama ramka
+   jako kontener: napis `Ukryj wcześniejsze pociągi` ze strzałką zostaje na miejscu, a w środku (padding 6 px)
+   zwarte wiersze na tle `--bg-deep`, najpierw dojechały i odwołane przed teraz, potem w drodze:
+   - dojechał / odwołany: `05:23 → 07:41`, `EIP 1300`, pastylka (obrys), ✓ albo ✕ (odwołany: godziny
+     przekreślone); tekst przygaszony (`--dim`), tło bez zmian;
+   - w drodze: `06:23 → 09:10`, `IC 3502`, pod spodem `ostatnio: Włoszczowa Płn.`, pastylka, pinezka, pasek postępu
+     3 px; przypięty — limonkowa obwódka 2 px.
+   Prawa krawędź pastylki 38 px od prawej krawędzi wiersza (we wszystkich wierszach na jednej linii).
+2. Linia „Teraz 07:50" (limonkowa pastylka + kreska).
+3. Karty nadchodzące: `08:10 → 10:49` (rdzawe przy opóźnieniu; odwołany — przekreślony, szary), przekreślony plan,
+   wiersz `IC 3504` + pastylka + podpis (5.4), flaga; pinezka 44 px po prawej (`aria-pressed`, `aria-label`
+   „Przypnij IC 3504" / „Odepnij…"). Nieprzypięta: pusta, obrócona o 30° zgodnie z ruchem wskazówek zegara;
+   przypięta: wypełniona, pionowo (przejście płynne). Przypięty: limonkowa ramka 2 px.
    **Wszystkie** pozostałe pociągi dnia, bez limitu.
+4. Po stuknięciu pinezki karta zostaje pod palcem (6), choć kontener „Przypięte" nad nią rośnie lub maleje.
 5. Brak pociągów w kierunku → komunikat „Dziś nie ma już bezpośrednich pociągów do Krakowa".
 
 ### 8.5 Sekcja „Jutro"
@@ -525,12 +555,12 @@ sprawdź workflow"), `DataStale` (czerwone „rozkład z wczoraj", lista działa
 
 ### 8.10 Lista stacji (rozwijany kafelek)
 
-Stuknięcie w kartę „Dziś", kafelek „Twój pociąg" albo kafelek „Jutro" rozwija pod nim listę postojów
+Stuknięcie w kartę „Dziś", wiersz „w drodze", dużą formę przypiętego albo kafelek „Jutro" rozwija pod nim listę postojów
 odcinka WAW–KRK (`stops`, 3.4): godzina (odjazd na stacji początkowej, przyjazd na pozostałych), oś
 z kropkami, nazwa (stacje krańcowe pogrubione). Z danymi na żywo: oczekiwana godzina (rdzawa przy
 opóźnieniu ≥ 1 min) i przekreślona planowa; miniona stacja (potwierdzona i po odjeździe) przygaszona,
 następna wyróżniona kropką. Bez danych na żywo — rozkład (miniona wg planu). Mechanika: przezroczysty
-`<button aria-expanded>` na całym kafelku, gwiazdka nad nim; stan rozwinięcia tylko w pamięci karty.
+`<button aria-expanded>` na całym kafelku, pinezka nad nim; stan rozwinięcia tylko w pamięci karty.
 Kafelek „Jutro" rozwinięty zajmuje całą szerokość siatki. Logika: `stopsView` w `logic.js` (z testami).
 
 ---
@@ -640,7 +670,8 @@ service worker / offline; inne relacje.
 6. Otwarcie strony → dane na żywo w < 3 s (przy działającym API); karta w tle nie wysyła zapytań.
 7. Brak odświeżenia > 60 min albo rozkład nie z dziś → czerwone oznaczenie w nagłówku.
 8. Po przewinięciu nagłówek zwija się do „Do KRK"/„Do WAW" z działającym przełączaniem i odświeżaniem.
-9. Przypięty pociąg widoczny w kafelku w obu kierunkach i znika po przyjeździe.
+9. Przypięte pociągi (osobno do Krakowa i do Warszawy) widoczne w kontenerze w obu kierunkach; każdy znika
+   po przyjeździe.
 10. Klucz API nie występuje w repo, na `gh-pages`, w odpowiedziach Workera ani w logach Actions.
 11. Tydzień pracy: pipeline publikuje codziennie, budżet API nie przekroczony.
 
